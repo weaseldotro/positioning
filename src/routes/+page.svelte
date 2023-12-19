@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { dxFeedEncodeOptionsSymbol, dxfeedConnection, dxfeedSubscribe } from '$lib/dxfeed'
+	import { dxfeedConnection, dxfeedSubscribe } from '$lib/dxfeed'
 	import { checkSession } from '$lib/tastytrade'
 	import { onMount } from 'svelte'
 	import ConnectingModal from './modals/ConnectingModal.svelte'
@@ -77,6 +77,7 @@
 {#if $tastytradeSession == 'valid'}
 	<div class="flex flex-col sm:flex-row items-center justify-between gap-2 p-2 bg-slate-100">
 		<div class="flex items-center gap-2 flex-wrap">
+			<span class="font-bold text-xl">Portfolio Positioning</span>
 			<!-- {#if $SPYPrice}
 				<div>
 					<span class="font-bold">SPY:</span>
