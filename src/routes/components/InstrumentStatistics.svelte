@@ -188,7 +188,7 @@
 
 		<div class="grid md:grid-cols-2 gap-1">
 			<div>
-				<KeyValue key="Call deltas" value={roundNumber(totalDeltas.shortCalls + totalDeltas.shortCalls)} />
+				<KeyValue key="Call deltas" value={roundNumber(totalDeltas.shortCalls + totalDeltas.longCalls)} />
 				<KeyValue key="Short call deltas" value={totalDeltas.shortCalls} />
 				<KeyValue key="Long call deltas" value={totalDeltas.longCalls} />
 				<KeyValue key="Number of short calls" value={totalQuantity.shortCalls} />
@@ -202,7 +202,7 @@
 			</div>
 
 			<div>
-				<KeyValue key="Put deltas" value={roundNumber(totalDeltas.shortPuts + totalDeltas.shortPuts)} />
+				<KeyValue key="Put deltas" value={roundNumber(totalDeltas.shortPuts + totalDeltas.longPuts)} />
 				<KeyValue key="Short put deltas" value={totalDeltas.shortPuts} />
 				<KeyValue key="Long put deltas" value={totalDeltas.longPuts} />
 
