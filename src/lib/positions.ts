@@ -1,7 +1,15 @@
 import { get, writable } from 'svelte/store'
 import { tastytradeDecodeOptionsSymbol, type Position, tastytradeAccount, getPositions } from './tastytrade'
 
-export const tastytradePositions = writable<(Position & {bid?: number, ask?: number, iv?: number, delta?: number, theo?: number})[]>([])
+export interface PositionWithBidAsk extends Position {
+	bid?: number
+	ask?: number
+	iv?: number
+	delta?: number
+	theo?: number
+}
+
+export const tastytradePositions = writable<(PositionWithBidAsk)[]>([])
 export const instruments = writable<string[]>([])
 
 export const loadPositions = async () => {
