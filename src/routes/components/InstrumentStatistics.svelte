@@ -3,10 +3,13 @@
 	import { calculateDTE, calculateEquityOptionsMaintenanceBuyingPower, calculateQuantities, type MaintenanceBuyingPower, type Quantities, type Quantity } from '$lib/calculate'
 	import { trades } from '$lib/market'
 	import { roundNumber } from '$lib/math'
-	import { tastytradePositions } from '$lib/positions'
+	import { tastytradePositions, type PositionWithBidAsk } from '$lib/positions'
+	import { Badge, Table, TableBody, TableBodyCell, TableBodyRow, TableHead, TableHeadCell } from 'flowbite-svelte'
 	import KeyValue from './KeyValue.svelte'
 
 	export let instrument: string
+
+	const tdClass = 'px-6 py-1 whitespace-nowrap font-medium text-center text-black'
 
 	let expirations: string[] = []
 	let maintenanceBuyingPower: MaintenanceBuyingPower = {}
@@ -20,6 +23,9 @@
 		longPuts: 0,
 	}
 	let updateInterval: number
+
+	let callPositions: PositionWithBidAsk[] = []
+	let putPositions: PositionWithBidAsk[] = []
 
 	const updateInstrument = () => {
 		let newExpirations: string[] = []
@@ -42,6 +48,20 @@
 			if (!newExpirations.includes(position.instrument.expiration as string)) {
 				newExpirations.push(position.instrument.expiration as string)
 			}
+
+			if (position.instrument.side == 'call') {
+				callPositions.push(position)
+			} else {
+				putPositions.push(position)
+			}
+		})
+
+		// sort call and put positions using the delta
+		callPositions.sort((a, b) => {
+			return (b.delta as number) - (a.delta as number)
+		})
+		putPositions.sort((a, b) => {
+			return (a.delta as number) - (b.delta as number)
 		})
 
 		maintenanceBuyingPower = {}
@@ -77,19 +97,25 @@
 		setInterval(updateGreeks, 1000)
 	}
 
-	interface Deltas {
-		shortCalls: number
-		longCalls: number
-		shortPuts: number
-		longPuts: number
+	interface Totals {
+		shortCallsDeltas: number
+		longCallsDeltas: number
+		shortPutsDeltas: number
+		longPutsDeltas: number
+		netDelta: number
+		totalDeltas: number
+		imbalance: number
 	}
 
-	let deltas: Record<string, Deltas> = {}
-	let totalDeltas: Deltas = {
-		shortCalls: 0,
-		longCalls: 0,
-		shortPuts: 0,
-		longPuts: 0,
+	let deltas: Record<string, Totals> = {}
+	let totals: Totals = {
+		shortCallsDeltas: 0,
+		longCallsDeltas: 0,
+		shortPutsDeltas: 0,
+		longPutsDeltas: 0,
+		netDelta: 0,
+		totalDeltas: 0,
+		imbalance: 0,
 	}
 
 	const updateGreeks = () => {
@@ -106,7 +132,26 @@
 				$tastytradePositions[i].iv = iv
 				$tastytradePositions[i].delta = getDelta(price, position.instrument.strike as number, timeToExpiration, iv, 0, position.instrument.side as string)
 				$tastytradePositions[i].theo = blackScholes(price, position.instrument.strike as number, timeToExpiration, iv, 0, position.instrument.side as string)
-				// console.log('greeks', $tastytradePositions[i])
+
+				if (position.instrument.side == 'call') {
+					for (let j = 0; j < callPositions.length; j++) {
+						if (callPositions[j].instrument.dxfeedSymbol == position.instrument.dxfeedSymbol) {
+							callPositions[j].iv = iv
+							callPositions[j].delta = $tastytradePositions[i].delta
+							callPositions[j].theo = $tastytradePositions[i].theo
+							break
+						}
+					}
+				} else {
+					for (let j = 0; j < putPositions.length; j++) {
+						if (putPositions[j].instrument.dxfeedSymbol == position.instrument.dxfeedSymbol) {
+							putPositions[j].iv = iv
+							putPositions[j].delta = $tastytradePositions[i].delta
+							putPositions[j].theo = $tastytradePositions[i].theo
+							break
+						}
+					}
+				}
 			}
 		})
 
@@ -120,54 +165,67 @@
 			let expiration = position.instrument.expiration as string
 			if (!(expiration in deltas)) {
 				deltas[expiration] = {
-					shortCalls: 0,
-					longCalls: 0,
-					shortPuts: 0,
-					longPuts: 0,
+					shortCallsDeltas: 0,
+					longCallsDeltas: 0,
+					shortPutsDeltas: 0,
+					longPutsDeltas: 0,
+					netDelta: 0,
+					totalDeltas: 0,
+					imbalance: 0,
 				}
 			}
 
 			if (position.instrument.side == 'call') {
 				if (position['quantity-direction'] == 'Long') {
-					deltas[expiration].longCalls += (position.delta as number) * position.quantity
+					deltas[expiration].longCallsDeltas += (position.delta as number) * position.quantity
 				} else {
-					deltas[expiration].shortCalls += (position.delta as number) * -position.quantity
+					deltas[expiration].shortCallsDeltas += (position.delta as number) * -position.quantity
 				}
 			} else {
 				if (position['quantity-direction'] == 'Long') {
-					deltas[expiration].longPuts += (position.delta as number) * position.quantity
+					deltas[expiration].longPutsDeltas += (position.delta as number) * position.quantity
 				} else {
-					deltas[expiration].shortPuts += (position.delta as number) * -position.quantity
+					deltas[expiration].shortPutsDeltas += (position.delta as number) * -position.quantity
 				}
 			}
+
+			deltas[expiration].netDelta = deltas[expiration].shortCallsDeltas + deltas[expiration].longCallsDeltas + deltas[expiration].shortPutsDeltas + deltas[expiration].longPutsDeltas
+			deltas[expiration].totalDeltas = Math.abs(deltas[expiration].shortCallsDeltas + deltas[expiration].longCallsDeltas) + Math.abs(deltas[expiration].shortPutsDeltas + deltas[expiration].longPutsDeltas)
+			deltas[expiration].imbalance = roundNumber((deltas[expiration].netDelta / deltas[expiration].totalDeltas) * 100)
 		})
 
 		// multiply deltas by 100 and round
 		Object.values(deltas).forEach((d) => {
-			d.shortCalls = roundNumber(d.shortCalls * 100)
-			d.longCalls = roundNumber(d.longCalls * 100)
-			d.shortPuts = roundNumber(d.shortPuts * 100)
-			d.longPuts = roundNumber(d.longPuts * 100)
+			d.shortCallsDeltas = roundNumber(d.shortCallsDeltas * 100)
+			d.longCallsDeltas = roundNumber(d.longCallsDeltas * 100)
+			d.shortPutsDeltas = roundNumber(d.shortPutsDeltas * 100)
+			d.longPutsDeltas = roundNumber(d.longPutsDeltas * 100)
 		})
 
 		// sum up all the deltas for all expirations
-		totalDeltas = {
-			shortCalls: 0,
-			longCalls: 0,
-			shortPuts: 0,
-			longPuts: 0,
+		totals = {
+			shortCallsDeltas: 0,
+			longCallsDeltas: 0,
+			shortPutsDeltas: 0,
+			longPutsDeltas: 0,
+			netDelta: 0,
+			totalDeltas: 0,
+			imbalance: 0,
 		}
 		Object.values(deltas).forEach((d) => {
-			totalDeltas.shortCalls += d.shortCalls
-			totalDeltas.longCalls += d.longCalls
-			totalDeltas.shortPuts += d.shortPuts
-			totalDeltas.longPuts += d.longPuts
+			totals.shortCallsDeltas += d.shortCallsDeltas
+			totals.longCallsDeltas += d.longCallsDeltas
+			totals.shortPutsDeltas += d.shortPutsDeltas
+			totals.longPutsDeltas += d.longPutsDeltas
 		})
 
-		totalDeltas.shortCalls = roundNumber(totalDeltas.shortCalls)
-		totalDeltas.longCalls = roundNumber(totalDeltas.longCalls)
-		totalDeltas.shortPuts = roundNumber(totalDeltas.shortPuts)
-		totalDeltas.longPuts = roundNumber(totalDeltas.longPuts)
+		totals.shortCallsDeltas = roundNumber(totals.shortCallsDeltas)
+		totals.longCallsDeltas = roundNumber(totals.longCallsDeltas)
+		totals.shortPutsDeltas = roundNumber(totals.shortPutsDeltas)
+		totals.longPutsDeltas = roundNumber(totals.longPutsDeltas)
+		totals.netDelta = roundNumber(totals.shortCallsDeltas + totals.longCallsDeltas + totals.shortPutsDeltas + totals.longPutsDeltas)
+		totals.totalDeltas = roundNumber(Math.abs(totals.shortCallsDeltas + totals.longCallsDeltas) + Math.abs(totals.shortPutsDeltas + totals.longPutsDeltas))
+		totals.imbalance = roundNumber((totals.netDelta / totals.totalDeltas) * 100)
 	}
 
 	$: if (instrument) {
@@ -175,68 +233,75 @@
 	}
 </script>
 
-<div class="space-y-8">
-	<div>
-		<h2 class="p-2 bg-green-200 mb-2 font-semibold">
+<div class="flex flex-wrap gap-3 justify-start items-start">
+	<div class="w-full max-w-xl p-2 border border-green-400 mb-3">
+		<h2 class="p-2 bg-green-200 mb-2 font-semibold -mt-2 -mx-2 text-center">
 			{instrument}
-			{#if $trades && $trades[instrument]}trading at {$trades[instrument]}{/if}
+			{#if $trades && $trades[instrument]}
+				${$trades[instrument]}{/if}
 		</h2>
 
-		<div>
-			<KeyValue key="Total deltas" value={roundNumber(totalDeltas.shortCalls + totalDeltas.longCalls + totalDeltas.shortPuts + totalDeltas.longPuts)} />
-		</div>
-
-		<div class="grid md:grid-cols-2 gap-1">
+		<div class="grid md:grid-cols-2 gap-x-3">
 			<div>
-				<KeyValue key="Call deltas" value={roundNumber(totalDeltas.shortCalls + totalDeltas.longCalls)} />
-				<KeyValue key="Short call deltas" value={totalDeltas.shortCalls} />
-				<KeyValue key="Long call deltas" value={totalDeltas.longCalls} />
-				<KeyValue key="Number of short calls" value={totalQuantity.shortCalls} />
-				<KeyValue key="Number of long calls" value={totalQuantity.longCalls} />
-				{#if callsMaintenanceBuyingPower}
-					<KeyValue key="Total calls maintenance BPR" value={callsMaintenanceBuyingPower} />
-				{/if}
-				{#if callsMaintenanceBuyingPower && totalQuantity.shortCalls}
-					<KeyValue key="Average maintenance BPR / short call" value={Math.round(callsMaintenanceBuyingPower / totalQuantity.shortCalls)} />
-				{/if}
+				<KeyValue key="Net delta" value={totals.netDelta} />
+			</div>
+			<div>
+				<KeyValue key="Imbalance" value={totals.imbalance + '%'} />
 			</div>
 
 			<div>
-				<KeyValue key="Put deltas" value={roundNumber(totalDeltas.shortPuts + totalDeltas.longPuts)} />
-				<KeyValue key="Short put deltas" value={totalDeltas.shortPuts} />
-				<KeyValue key="Long put deltas" value={totalDeltas.longPuts} />
+				<KeyValue key="Call deltas" value={roundNumber(totals.shortCallsDeltas + totals.longCallsDeltas)} />
+				<KeyValue key="Short call deltas" value={totals.shortCallsDeltas} />
+				<KeyValue key="Long call deltas" value={totals.longCallsDeltas} />
+				<KeyValue key="Number of short calls" value={totalQuantity.shortCalls} />
+				<KeyValue key="Number of long calls" value={totalQuantity.longCalls} />
+				{#if callsMaintenanceBuyingPower}
+					<KeyValue key="Total calls BPR" value={callsMaintenanceBuyingPower} />
+				{/if}
+				<!-- {#if callsMaintenanceBuyingPower && totalQuantity.shortCalls}
+					<KeyValue key="Average BPR / short call" value={Math.round(callsMaintenanceBuyingPower / totalQuantity.shortCalls)} />
+				{/if} -->
+			</div>
+
+			<div>
+				<KeyValue key="Put deltas" value={roundNumber(totals.shortPutsDeltas + totals.longPutsDeltas)} />
+				<KeyValue key="Short put deltas" value={totals.shortPutsDeltas} />
+				<KeyValue key="Long put deltas" value={totals.longPutsDeltas} />
 
 				<KeyValue key="Number of short puts" value={totalQuantity.shortPuts} />
 				<KeyValue key="Number of long puts" value={totalQuantity.longPuts} />
 				{#if putsMaintenanceBuyingPower}
-					<KeyValue key="Total puts maintenance BPR" value={putsMaintenanceBuyingPower} />
+					<KeyValue key="Total puts BPR" value={putsMaintenanceBuyingPower} />
 				{/if}
-				{#if putsMaintenanceBuyingPower && totalQuantity.shortPuts}
-					<KeyValue key="Average maintenance BPR / short put" value={Math.round(putsMaintenanceBuyingPower / totalQuantity.shortPuts)} />
-				{/if}
+				<!-- {#if putsMaintenanceBuyingPower && totalQuantity.shortPuts}
+					<KeyValue key="Average BPR / short put" value={Math.round(putsMaintenanceBuyingPower / totalQuantity.shortPuts)} />
+				{/if} -->
 			</div>
 		</div>
 	</div>
 
 	{#each expirations as expiration}
-		<div class="border-l-4 border-blue-400 pl-2">
-			<h2 class="p-2 bg-blue-100 mb-2 font-semibold">
+		<div class="w-full max-w-xl p-2 border border-blue-400">
+			<h2 class="p-2 bg-blue-100 mb-2 font-semibold -mt-2 -mx-2 text-center">
 				{instrument}
 				{expiration} expiration ({calculateDTE(expiration)} DTE)
 			</h2>
 
-			{#if expiration in deltas}
-				<div>
-					<KeyValue key="Total deltas" value={roundNumber(deltas[expiration].shortCalls + deltas[expiration].longCalls + deltas[expiration].shortPuts + deltas[expiration].longPuts)} />
-				</div>
-			{/if}
+			<div class="grid md:grid-cols-2 gap-x-3">
+				{#if expiration in deltas}
+					<div>
+						<KeyValue key="Net delta" value={roundNumber(deltas[expiration].shortCallsDeltas + deltas[expiration].longCallsDeltas + deltas[expiration].shortPutsDeltas + deltas[expiration].longPutsDeltas)} />
+					</div>
+					<div>
+						<KeyValue key="Imbalance" value={deltas[expiration].imbalance + '%'} />
+					</div>
+				{/if}
 
-			<div class="grid md:grid-cols-2 gap-1">
 				<div>
 					{#if expiration in deltas}
-						<KeyValue key="Call deltas" value={roundNumber(deltas[expiration].shortCalls + deltas[expiration].longCalls)} />
-						<KeyValue key="Short call deltas" value={deltas[expiration].shortCalls} />
-						<KeyValue key="Long call deltas" value={deltas[expiration].longCalls} />
+						<KeyValue key="Call deltas" value={roundNumber(deltas[expiration].shortCallsDeltas + deltas[expiration].longCallsDeltas)} />
+						<KeyValue key="Short call deltas" value={deltas[expiration].shortCallsDeltas} />
+						<KeyValue key="Long call deltas" value={deltas[expiration].longCallsDeltas} />
 					{/if}
 
 					{#if expiration in quantities}
@@ -245,19 +310,19 @@
 					{/if}
 
 					{#if expiration in maintenanceBuyingPower}
-						<KeyValue key="Total calls maintenance BPR" value={maintenanceBuyingPower[expiration].calls} />
+						<KeyValue key="Total calls BPR" value={maintenanceBuyingPower[expiration].calls} />
 					{/if}
 
-					{#if expiration in maintenanceBuyingPower && quantities[expiration].shortCalls}
-						<KeyValue key="Average maintenance BPR / short call" value={Math.round(maintenanceBuyingPower[expiration].calls / quantities[expiration].shortCalls)} />
-					{/if}
+					<!-- {#if expiration in maintenanceBuyingPower && quantities[expiration].shortCalls}
+						<KeyValue key="Average BPR / short call" value={Math.round(maintenanceBuyingPower[expiration].calls / quantities[expiration].shortCalls)} />
+					{/if} -->
 				</div>
 
 				<div>
 					{#if expiration in deltas}
-						<KeyValue key="Put deltas" value={roundNumber(deltas[expiration].shortPuts + deltas[expiration].longPuts)} />
-						<KeyValue key="Short put deltas" value={deltas[expiration].shortPuts} />
-						<KeyValue key="Long put deltas" value={deltas[expiration].longPuts} />
+						<KeyValue key="Put deltas" value={roundNumber(deltas[expiration].shortPutsDeltas + deltas[expiration].longPutsDeltas)} />
+						<KeyValue key="Short put deltas" value={deltas[expiration].shortPutsDeltas} />
+						<KeyValue key="Long put deltas" value={deltas[expiration].longPutsDeltas} />
 					{/if}
 
 					{#if expiration in quantities}
@@ -266,14 +331,88 @@
 					{/if}
 
 					{#if expiration in maintenanceBuyingPower}
-						<KeyValue key="Total puts maintenance BPR" value={maintenanceBuyingPower[expiration].puts} />
+						<KeyValue key="Total puts BPR" value={maintenanceBuyingPower[expiration].puts} />
 					{/if}
 
-					{#if expiration in maintenanceBuyingPower && quantities[expiration].shortPuts}
-						<KeyValue key="Average maintenance BPR / short put" value={Math.round(maintenanceBuyingPower[expiration].puts / quantities[expiration].shortPuts)} />
-					{/if}
+					<!-- {#if expiration in maintenanceBuyingPower && quantities[expiration].shortPuts}
+						<KeyValue key="Average BPR / short put" value={Math.round(maintenanceBuyingPower[expiration].puts / quantities[expiration].shortPuts)} />
+					{/if} -->
 				</div>
 			</div>
 		</div>
 	{/each}
+</div>
+
+<div class="grid xl:grid-cols-2 gap-2 mt-2">
+	<div>
+		<h2 class="text-lg font-semibold mb-1">{instrument} Calls</h2>
+		<Table class="border w-full max-w-4xl" hoverable>
+			<TableHead class="bg-slate-200">
+				<TableHeadCell class={`${tdClass} w-40`}>Expiration</TableHeadCell>
+				<TableHeadCell class={`${tdClass} w-40`}>Strike</TableHeadCell>
+				<TableHeadCell class={`${tdClass} w-40`}>Quantity</TableHeadCell>
+				<TableHeadCell class={tdClass}>Delta</TableHeadCell>
+				<TableHeadCell class={`${tdClass} w-40`}>Net delta</TableHeadCell>
+				<TableHeadCell class={`${tdClass} w-40`}>IV</TableHeadCell>
+				<TableHeadCell class={`${tdClass} w-40`}>Theo price</TableHeadCell>
+			</TableHead>
+			<TableBody>
+				{#each callPositions as position}
+					<TableBodyRow>
+						<TableBodyCell {tdClass} >
+							<span>{position.instrument.expiration ? calculateDTE(position.instrument.expiration) : ''} DTE</span>
+						</TableBodyCell>
+						<TableBodyCell {tdClass} >
+							<span>{position.instrument.strike}</span>
+						</TableBodyCell>
+						<TableBodyCell {tdClass} >
+							<Badge class="ml-2" border large color={position['quantity-direction'] == 'Long' ? 'green' : 'red'}
+								>{#if position['quantity-direction'] == 'Long'}+{:else}-{/if}{position.quantity}
+							</Badge>
+						</TableBodyCell>
+						<TableBodyCell {tdClass} >{position.delta ? (position.delta * 100).toFixed(2) : ''}</TableBodyCell>
+						<TableBodyCell {tdClass} >{position.delta ? (position.quantity * position.delta * 100 * (position['quantity-direction'] == 'Short' ? -1 : 1)).toFixed(2) : ''}</TableBodyCell>
+						<TableBodyCell {tdClass} >{position.iv ? (position.iv * 100).toFixed(2) : ''}</TableBodyCell>
+						<TableBodyCell {tdClass} >{position.theo ? position.theo.toFixed(2) : ''}</TableBodyCell>
+					</TableBodyRow>
+				{/each}
+			</TableBody>
+		</Table>
+	</div>
+
+	<div>
+		<h2 class="text-lg font-semibold mb-1">{instrument} Puts</h2>
+		<Table class="border w-full max-w-4xl" hoverable>
+			<TableHead class="bg-slate-200">
+				<TableHeadCell class={`${tdClass} w-40`}>Expiration</TableHeadCell>
+				<TableHeadCell class={`${tdClass} w-40`}>Strike</TableHeadCell>
+				<TableHeadCell class={`${tdClass} w-40`}>Quantity</TableHeadCell>
+				<TableHeadCell class={tdClass}>Delta</TableHeadCell>
+				<TableHeadCell class={`${tdClass} w-40`}>Net delta</TableHeadCell>
+				<TableHeadCell class={`${tdClass} w-40`}>IV</TableHeadCell>
+				<TableHeadCell class={`${tdClass} w-40`}>Theo price</TableHeadCell>
+			</TableHead>
+			<TableBody>
+				{#each putPositions as position}
+					<TableBodyRow>
+						<TableBodyCell {tdClass} >
+							<span>{position.instrument.expiration ? calculateDTE(position.instrument.expiration) : ''} DTE</span>
+						</TableBodyCell>
+						<TableBodyCell {tdClass} >
+							<span>{position.instrument.strike}</span>
+						</TableBodyCell>
+						<TableBodyCell {tdClass} >
+							<Badge class="ml-2" border large color={position['quantity-direction'] == 'Long' ? 'green' : 'red'}
+								>{#if position['quantity-direction'] == 'Long'}+{:else}-{/if}{position.quantity}
+							</Badge>
+						</TableBodyCell>
+						<TableBodyCell {tdClass} >{position.delta ? (position.delta * 100).toFixed(2) : ''}</TableBodyCell>
+						<TableBodyCell {tdClass} >{position.delta ? (position.quantity * position.delta * 100 * (position['quantity-direction'] == 'Short' ? -1 : 1)).toFixed(2) : ''}</TableBodyCell>
+						<TableBodyCell {tdClass} >{position.iv ? (position.iv * 100).toFixed(2) : ''}</TableBodyCell>
+						<TableBodyCell {tdClass} >{position.theo ? position.theo.toFixed(2) : ''}</TableBodyCell>
+					</TableBodyRow>
+				{/each}
+			</TableBody>
+		</Table>
+	</div>
 </div>
