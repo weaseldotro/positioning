@@ -175,10 +175,10 @@ export const calculateEquityOptionsMaintenanceBuyingPower = (underlyingInstrumen
 }
 
 export interface Quantity {
-	shortCalls: number
-	longCalls: number
-	shortPuts: number
-	longPuts: number
+	shortCallsQty: number
+	longCallsQty: number
+	shortPutsQty: number
+	longPutsQty: number
 }
 
 export type Quantities = Record<string, Quantity>
@@ -192,24 +192,24 @@ export const calculateQuantities = (underlyingInstrument: string): Quantities =>
 
 		if (!((position.instrument.expiration as string) in quantities)) {
 			quantities[position.instrument.expiration as string] = {
-				shortCalls: 0,
-				longCalls: 0,
-				shortPuts: 0,
-				longPuts: 0,
+				shortCallsQty: 0,
+				longCallsQty: 0,
+				shortPutsQty: 0,
+				longPutsQty: 0,
 			}
 		}
 
 		if (position.instrument.side == OptionSide.call) {
 			if (position['quantity-direction'] == 'Short') {
-				quantities[position.instrument.expiration as string].shortCalls += position.quantity
+				quantities[position.instrument.expiration as string].shortCallsQty += position.quantity
 			} else if (position['quantity-direction'] == 'Long') {
-				quantities[position.instrument.expiration as string].longCalls += position.quantity
+				quantities[position.instrument.expiration as string].longCallsQty += position.quantity
 			}
 		} else if (position.instrument.side == OptionSide.put) {
 			if (position['quantity-direction'] == 'Short') {
-				quantities[position.instrument.expiration as string].shortPuts += position.quantity
+				quantities[position.instrument.expiration as string].shortPutsQty += position.quantity
 			} else if (position['quantity-direction'] == 'Long') {
-				quantities[position.instrument.expiration as string].longPuts += position.quantity
+				quantities[position.instrument.expiration as string].longPutsQty += position.quantity
 			}
 		}
 	})

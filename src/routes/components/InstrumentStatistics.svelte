@@ -17,10 +17,10 @@
 	let putsMaintenanceBuyingPower = 0
 	let quantities: Quantities = {}
 	let totalQuantity: Quantity = {
-		shortCalls: 0,
-		longCalls: 0,
-		shortPuts: 0,
-		longPuts: 0,
+		shortCallsQty: 0,
+		longCallsQty: 0,
+		shortPutsQty: 0,
+		longPutsQty: 0,
 	}
 	let updateInterval: number
 
@@ -34,10 +34,10 @@
 		callsMaintenanceBuyingPower = 0
 		putsMaintenanceBuyingPower = 0
 		totalQuantity = {
-			shortCalls: 0,
-			longCalls: 0,
-			shortPuts: 0,
-			longPuts: 0,
+			shortCallsQty: 0,
+			longCallsQty: 0,
+			shortPutsQty: 0,
+			longPutsQty: 0,
 		}
 
 		callPositions = []
@@ -72,10 +72,10 @@
 
 		quantities = calculateQuantities(instrument)
 		Object.values(quantities).forEach((quantity) => {
-			totalQuantity.shortCalls += quantity.shortCalls
-			totalQuantity.longCalls += quantity.longCalls
-			totalQuantity.shortPuts += quantity.shortPuts
-			totalQuantity.longPuts += quantity.longPuts
+			totalQuantity.shortCallsQty += quantity.shortCallsQty
+			totalQuantity.longCallsQty += quantity.longCallsQty
+			totalQuantity.shortPutsQty += quantity.shortPutsQty
+			totalQuantity.longPutsQty += quantity.longPutsQty
 		})
 
 		if (newExpirations.length > 0) {
@@ -100,7 +100,7 @@
 		longPutsDeltas: number
 		netDelta: number
 		totalDeltas: number
-		imbalance: number
+		deltaImbalance: number
 	}
 
 	let deltas: Record<string, Totals> = {}
@@ -111,7 +111,7 @@
 		longPutsDeltas: 0,
 		netDelta: 0,
 		totalDeltas: 0,
-		imbalance: 0,
+		deltaImbalance: 0,
 	}
 
 	const updateGreeks = () => {
@@ -177,7 +177,7 @@
 					longPutsDeltas: 0,
 					netDelta: 0,
 					totalDeltas: 0,
-					imbalance: 0,
+					deltaImbalance: 0,
 				}
 			}
 
@@ -197,7 +197,7 @@
 
 			deltas[expiration].netDelta = deltas[expiration].shortCallsDeltas + deltas[expiration].longCallsDeltas + deltas[expiration].shortPutsDeltas + deltas[expiration].longPutsDeltas
 			deltas[expiration].totalDeltas = Math.abs(deltas[expiration].shortCallsDeltas + deltas[expiration].longCallsDeltas) + Math.abs(deltas[expiration].shortPutsDeltas + deltas[expiration].longPutsDeltas)
-			deltas[expiration].imbalance = roundNumber((deltas[expiration].netDelta / deltas[expiration].totalDeltas) * 100)
+			deltas[expiration].deltaImbalance = roundNumber((deltas[expiration].netDelta / deltas[expiration].totalDeltas) * 100)
 		})
 
 		// multiply deltas by 100 and round
@@ -216,7 +216,7 @@
 			longPutsDeltas: 0,
 			netDelta: 0,
 			totalDeltas: 0,
-			imbalance: 0,
+			deltaImbalance: 0,
 		}
 		Object.values(deltas).forEach((d) => {
 			totals.shortCallsDeltas += d.shortCallsDeltas
@@ -231,7 +231,7 @@
 		totals.longPutsDeltas = roundNumber(totals.longPutsDeltas)
 		totals.netDelta = roundNumber(totals.shortCallsDeltas + totals.longCallsDeltas + totals.shortPutsDeltas + totals.longPutsDeltas)
 		totals.totalDeltas = roundNumber(Math.abs(totals.shortCallsDeltas + totals.longCallsDeltas) + Math.abs(totals.shortPutsDeltas + totals.longPutsDeltas))
-		totals.imbalance = roundNumber((totals.netDelta / totals.totalDeltas) * 100)
+		totals.deltaImbalance = roundNumber((totals.netDelta / totals.totalDeltas) * 100)
 	}
 
 	$: if (instrument) {
@@ -253,17 +253,17 @@
 					<KeyValue key="Net delta" value={totals.netDelta} />
 				</div>
 				<div>
-					<KeyValue key="Imbalance" value={totals.imbalance + '%'} />
+					<KeyValue key="Delta imbalance" value={(totals.deltaImbalance > 0 ? '+' : '') + totals.deltaImbalance + '%'} />
 				</div>
 
 				<div>
 					<KeyValue key="Call deltas" value={roundNumber(totals.shortCallsDeltas + totals.longCallsDeltas)} />
-					<KeyValue key="Short call deltas" value={totals.shortCallsDeltas} />
-					<KeyValue key="Long call deltas" value={totals.longCallsDeltas} />
-					<KeyValue key="Number of short calls" value={totalQuantity.shortCalls} />
-					<KeyValue key="Number of long calls" value={totalQuantity.longCalls} />
+					<KeyValue key="Short calls deltas" value={totals.shortCallsDeltas} />
+					<KeyValue key="Long calls deltas" value={totals.longCallsDeltas} />
+					<KeyValue key="Short calls qty" value={totalQuantity.shortCallsQty} />
+					<KeyValue key="Long calls qty" value={totalQuantity.longCallsQty} />
 					{#if callsMaintenanceBuyingPower}
-						<KeyValue key="Total calls BPR" value={callsMaintenanceBuyingPower} />
+						<KeyValue key="Calls BPR" value={callsMaintenanceBuyingPower} />
 					{/if}
 					<!-- {#if callsMaintenanceBuyingPower && totalQuantity.shortCalls}
 					<KeyValue key="Average BPR / short call" value={Math.round(callsMaintenanceBuyingPower / totalQuantity.shortCalls)} />
@@ -275,10 +275,10 @@
 					<KeyValue key="Short put deltas" value={totals.shortPutsDeltas} />
 					<KeyValue key="Long put deltas" value={totals.longPutsDeltas} />
 
-					<KeyValue key="Number of short puts" value={totalQuantity.shortPuts} />
-					<KeyValue key="Number of long puts" value={totalQuantity.longPuts} />
+					<KeyValue key="Short puts qty" value={totalQuantity.shortPutsQty} />
+					<KeyValue key="Long puts qty" value={totalQuantity.longPutsQty} />
 					{#if putsMaintenanceBuyingPower}
-						<KeyValue key="Total puts BPR" value={putsMaintenanceBuyingPower} />
+						<KeyValue key="Puts BPR" value={putsMaintenanceBuyingPower} />
 					{/if}
 					<!-- {#if putsMaintenanceBuyingPower && totalQuantity.shortPuts}
 					<KeyValue key="Average BPR / short put" value={Math.round(putsMaintenanceBuyingPower / totalQuantity.shortPuts)} />
@@ -300,24 +300,24 @@
 							<KeyValue key="Net delta" value={roundNumber(deltas[expiration].shortCallsDeltas + deltas[expiration].longCallsDeltas + deltas[expiration].shortPutsDeltas + deltas[expiration].longPutsDeltas)} />
 						</div>
 						<div>
-							<KeyValue key="Imbalance" value={deltas[expiration].imbalance + '%'} />
+							<KeyValue key="Delta imbalance" value={(deltas[expiration].deltaImbalance > 0 ? '+' : '') + deltas[expiration].deltaImbalance + '%'} />
 						</div>
 					{/if}
 
 					<div>
 						{#if expiration in deltas}
 							<KeyValue key="Call deltas" value={roundNumber(deltas[expiration].shortCallsDeltas + deltas[expiration].longCallsDeltas)} />
-							<KeyValue key="Short call deltas" value={deltas[expiration].shortCallsDeltas} />
-							<KeyValue key="Long call deltas" value={deltas[expiration].longCallsDeltas} />
+							<KeyValue key="Short calls deltas" value={deltas[expiration].shortCallsDeltas} />
+							<KeyValue key="Long calls deltas" value={deltas[expiration].longCallsDeltas} />
 						{/if}
 
 						{#if expiration in quantities}
-							<KeyValue key="Number of short calls" value={quantities[expiration].shortCalls} />
-							<KeyValue key="Number of long calls" value={quantities[expiration].longCalls} />
+							<KeyValue key="Short calls qty" value={quantities[expiration].shortCallsQty} />
+							<KeyValue key="Long calls qty" value={quantities[expiration].longCallsQty} />
 						{/if}
 
 						{#if expiration in maintenanceBuyingPower}
-							<KeyValue key="Total calls BPR" value={maintenanceBuyingPower[expiration].calls} />
+							<KeyValue key="Calls BPR" value={maintenanceBuyingPower[expiration].calls} />
 						{/if}
 
 						<!-- {#if expiration in maintenanceBuyingPower && quantities[expiration].shortCalls}
@@ -333,12 +333,12 @@
 						{/if}
 
 						{#if expiration in quantities}
-							<KeyValue key="Number of short puts" value={quantities[expiration].shortPuts} />
-							<KeyValue key="Number of long puts" value={quantities[expiration].longPuts} />
+							<KeyValue key="Short puts qty" value={quantities[expiration].shortPutsQty} />
+							<KeyValue key="Long puts qty" value={quantities[expiration].longPutsQty} />
 						{/if}
 
 						{#if expiration in maintenanceBuyingPower}
-							<KeyValue key="Total puts BPR" value={maintenanceBuyingPower[expiration].puts} />
+							<KeyValue key="Puts BPR" value={maintenanceBuyingPower[expiration].puts} />
 						{/if}
 
 						<!-- {#if expiration in maintenanceBuyingPower && quantities[expiration].shortPuts}
@@ -358,25 +358,25 @@
 			{:else}
 				<Table class="border w-full max-w-4xl" hoverable>
 					<TableHead class="bg-slate-200">
-						<TableHeadCell class={`${tdClass} w-40`}>Expiration</TableHeadCell>
-						<TableHeadCell class={`${tdClass} w-40`}>Strike</TableHeadCell>
-						<TableHeadCell class={`${tdClass} w-40`}>Quantity</TableHeadCell>
+						<TableHeadCell class={tdClass}>DTE</TableHeadCell>
+						<TableHeadCell class={tdClass}>Strike</TableHeadCell>
+						<TableHeadCell class={tdClass}>Quantity</TableHeadCell>
 						<TableHeadCell class={tdClass}>Delta</TableHeadCell>
-						<TableHeadCell class={`${tdClass} w-40`}>Net delta</TableHeadCell>
-						<TableHeadCell class={`${tdClass} w-40`}>IV</TableHeadCell>
-						<TableHeadCell class={`${tdClass} w-40`}>Theo price</TableHeadCell>
+						<TableHeadCell class={tdClass}>Total deltas</TableHeadCell>
+						<TableHeadCell class={tdClass}>IV</TableHeadCell>
+						<TableHeadCell class={tdClass}>Theo</TableHeadCell>
 					</TableHead>
 					<TableBody>
 						{#each callPositions as position}
 							<TableBodyRow>
 								<TableBodyCell {tdClass}>
-									<span>{position.instrument.expiration ? calculateDTE(position.instrument.expiration) : ''} DTE</span>
+									<span>{position.instrument.expiration ? calculateDTE(position.instrument.expiration) : ''}</span>
 								</TableBodyCell>
 								<TableBodyCell {tdClass}>
 									<span>{position.instrument.strike}</span>
 								</TableBodyCell>
 								<TableBodyCell {tdClass}>
-									<Badge class="ml-2" border large color={position['quantity-direction'] == 'Long' ? 'green' : 'red'}
+									<Badge border color={position['quantity-direction'] == 'Long' ? 'green' : 'red'}
 										>{#if position['quantity-direction'] == 'Long'}+{:else}-{/if}{position.quantity}
 									</Badge>
 								</TableBodyCell>
@@ -398,25 +398,25 @@
 			{:else}
 				<Table class="border w-full max-w-4xl" hoverable>
 					<TableHead class="bg-slate-200">
-						<TableHeadCell class={`${tdClass} w-40`}>Expiration</TableHeadCell>
-						<TableHeadCell class={`${tdClass} w-40`}>Strike</TableHeadCell>
-						<TableHeadCell class={`${tdClass} w-40`}>Quantity</TableHeadCell>
+						<TableHeadCell class={tdClass}>DTE</TableHeadCell>
+						<TableHeadCell class={tdClass}>Strike</TableHeadCell>
+						<TableHeadCell class={tdClass}>Quantity</TableHeadCell>
 						<TableHeadCell class={tdClass}>Delta</TableHeadCell>
-						<TableHeadCell class={`${tdClass} w-40`}>Net delta</TableHeadCell>
-						<TableHeadCell class={`${tdClass} w-40`}>IV</TableHeadCell>
-						<TableHeadCell class={`${tdClass} w-40`}>Theo price</TableHeadCell>
+						<TableHeadCell class={tdClass}>Total deltas</TableHeadCell>
+						<TableHeadCell class={tdClass}>IV</TableHeadCell>
+						<TableHeadCell class={tdClass}>Theo</TableHeadCell>
 					</TableHead>
 					<TableBody>
 						{#each putPositions as position}
 							<TableBodyRow>
 								<TableBodyCell {tdClass}>
-									<span>{position.instrument.expiration ? calculateDTE(position.instrument.expiration) : ''} DTE</span>
+									<span>{position.instrument.expiration ? calculateDTE(position.instrument.expiration) : ''}</span>
 								</TableBodyCell>
 								<TableBodyCell {tdClass}>
 									<span>{position.instrument.strike}</span>
 								</TableBodyCell>
 								<TableBodyCell {tdClass}>
-									<Badge class="ml-2" border large color={position['quantity-direction'] == 'Long' ? 'green' : 'red'}
+									<Badge border color={position['quantity-direction'] == 'Long' ? 'green' : 'red'}
 										>{#if position['quantity-direction'] == 'Long'}+{:else}-{/if}{position.quantity}
 									</Badge>
 								</TableBodyCell>
