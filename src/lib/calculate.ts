@@ -221,5 +221,4 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 export const calculateDTE = (date: string) => {
 	return Math.floor(Math.abs((new Date(date + 'T21:00:00Z')).getTime() - (new Date()).getTime()) / MS_PER_DAY);
-	// return Math.floor(((new Date(date + 'T21:00:00Z')).getTime() - (new Date()).getTime()) / 8640000)
 }

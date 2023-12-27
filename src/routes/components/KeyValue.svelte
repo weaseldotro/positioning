@@ -4,6 +4,6 @@
 </script>
 
 <div class="flex gap-2">
-    <div class="w-80">{key}:</div>
+    <div class="min-w-40 w-full">{key}:</div>
     <div class="font-semibold">{value}</div>
 </div>
