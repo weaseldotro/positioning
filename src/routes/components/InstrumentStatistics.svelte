@@ -101,6 +101,10 @@
 		callDeltas: number
 		putDeltas: number
 		netDelta: number
+		callsExtrinsic: number
+		callsIntrinsic: number
+		putsExtrinsic: number
+		putsIntrinsic: number
 		totalDeltas: number
 		deltaImbalance: number
 		extrinsic: number
@@ -113,6 +117,10 @@
 		longCallsDeltas: 0,
 		shortPutsDeltas: 0,
 		longPutsDeltas: 0,
+		callsExtrinsic: 0,
+		callsIntrinsic: 0,
+		putsExtrinsic: 0,
+		putsIntrinsic: 0,
 		callDeltas: 0,
 		putDeltas: 0,
 		netDelta: 0,
@@ -166,6 +174,10 @@
 						longPutsDeltas: 0,
 						callDeltas: 0,
 						putDeltas: 0,
+						callsExtrinsic: 0,
+						callsIntrinsic: 0,
+						putsExtrinsic: 0,
+						putsIntrinsic: 0,
 						netDelta: 0,
 						totalDeltas: 0,
 						deltaImbalance: 0,
@@ -193,6 +205,14 @@
 				deltas[expiration].deltaImbalance = roundNumber((deltas[expiration].netDelta / deltas[expiration].totalDeltas) * 100)
 				deltas[expiration].intrinsic += $tastytradePositions[i].intrinsic as number
 				deltas[expiration].extrinsic += $tastytradePositions[i].extrinsic as number
+
+				if (position.instrument.side == 'call') {
+					deltas[expiration].callsIntrinsic += $tastytradePositions[i].intrinsic as number
+					deltas[expiration].callsExtrinsic += $tastytradePositions[i].extrinsic as number
+				} else {
+					deltas[expiration].putsIntrinsic += $tastytradePositions[i].intrinsic as number
+					deltas[expiration].putsExtrinsic += $tastytradePositions[i].extrinsic as number
+				}
 			}
 		})
 
@@ -216,6 +236,10 @@
 			d.putDeltas = roundNumber(d.shortPutsDeltas + d.longPutsDeltas)
 			d.intrinsic = roundNumber(d.intrinsic)
 			d.extrinsic = roundNumber(d.extrinsic)
+			d.callsExtrinsic = roundNumber(d.callsExtrinsic)
+			d.callsIntrinsic = roundNumber(d.callsIntrinsic)
+			d.putsExtrinsic = roundNumber(d.putsExtrinsic)
+			d.putsIntrinsic = roundNumber(d.putsIntrinsic)
 		})
 
 		// sum up all the deltas for all expirations
@@ -227,6 +251,10 @@
 			callDeltas: 0,
 			putDeltas: 0,
 			netDelta: 0,
+			callsExtrinsic: 0,
+			callsIntrinsic: 0,
+			putsExtrinsic: 0,
+			putsIntrinsic: 0,
 			totalDeltas: 0,
 			deltaImbalance: 0,
 			extrinsic: 0,
@@ -241,6 +269,10 @@
 			totals.putDeltas += d.putDeltas
 			totals.intrinsic += d.intrinsic
 			totals.extrinsic += d.extrinsic
+			totals.callsExtrinsic += d.callsExtrinsic
+			totals.callsIntrinsic += d.callsIntrinsic
+			totals.putsExtrinsic += d.putsExtrinsic
+			totals.putsIntrinsic += d.putsIntrinsic
 		})
 
 		totals.shortCallsDeltas = roundNumber(totals.shortCallsDeltas)
@@ -251,9 +283,13 @@
 		totals.putDeltas = roundNumber(totals.putDeltas)
 		totals.netDelta = roundNumber(totals.shortCallsDeltas + totals.longCallsDeltas + totals.shortPutsDeltas + totals.longPutsDeltas)
 		totals.totalDeltas = roundNumber(Math.abs(totals.shortCallsDeltas + totals.longCallsDeltas) + Math.abs(totals.shortPutsDeltas + totals.longPutsDeltas))
-		totals.deltaImbalance = roundNumber(totals.netDelta / totals.totalDeltas * 100)
+		totals.deltaImbalance = roundNumber((totals.netDelta / totals.totalDeltas) * 100)
 		totals.intrinsic = roundNumber(totals.intrinsic)
 		totals.extrinsic = roundNumber(totals.extrinsic)
+		totals.callsExtrinsic = roundNumber(totals.callsExtrinsic)
+		totals.callsIntrinsic = roundNumber(totals.callsIntrinsic)
+		totals.putsExtrinsic = roundNumber(totals.putsExtrinsic)
+		totals.putsIntrinsic = roundNumber(totals.putsIntrinsic)
 	}
 
 	$: if (instrument) {
@@ -292,6 +328,8 @@
 					{#if callsMaintenanceBuyingPower}
 						<KeyValue key="Calls BPR" value={callsMaintenanceBuyingPower} />
 					{/if}
+					<KeyValue key="Calls intrinsic" value={totals.callsIntrinsic} />
+					<KeyValue key="Calls extrinsic" value={totals.callsExtrinsic} />
 					<!-- {#if callsMaintenanceBuyingPower && totalQuantity.shortCalls}
 					<KeyValue key="Average BPR / short call" value={Math.round(callsMaintenanceBuyingPower / totalQuantity.shortCalls)} />
 				{/if} -->
@@ -307,6 +345,8 @@
 					{#if putsMaintenanceBuyingPower}
 						<KeyValue key="Puts BPR" value={putsMaintenanceBuyingPower} />
 					{/if}
+					<KeyValue key="Puts intrinsic" value={totals.putsIntrinsic} />
+					<KeyValue key="Puts extrinsic" value={totals.putsExtrinsic} />
 					<!-- {#if putsMaintenanceBuyingPower && totalQuantity.shortPuts}
 					<KeyValue key="Average BPR / short put" value={Math.round(putsMaintenanceBuyingPower / totalQuantity.shortPuts)} />
 				{/if} -->
@@ -341,7 +381,9 @@
 						<KeyValue key="Short calls qty" value={quantities[expiration].shortCallsQty} />
 						<KeyValue key="Long calls qty" value={quantities[expiration].longCallsQty} />
 						<KeyValue key="Calls BPR" value={maintenanceBuyingPower[expiration].calls} />
-
+						<KeyValue key="Calls intrinsic" value={deltas[expiration].callsIntrinsic} />
+						<KeyValue key="Calls extrinsic" value={deltas[expiration].callsExtrinsic} />
+	
 						<!-- {#if expiration in maintenanceBuyingPower && quantities[expiration].shortCalls}
 						<KeyValue key="Average BPR / short call" value={Math.round(maintenanceBuyingPower[expiration].calls / quantities[expiration].shortCalls)} />
 					{/if} -->
@@ -354,7 +396,9 @@
 						<KeyValue key="Short puts qty" value={quantities[expiration].shortPutsQty} />
 						<KeyValue key="Long puts qty" value={quantities[expiration].longPutsQty} />
 						<KeyValue key="Puts BPR" value={maintenanceBuyingPower[expiration].puts} />
-
+						<KeyValue key="Puts intrinsic" value={deltas[expiration].putsIntrinsic} />
+						<KeyValue key="Puts extrinsic" value={deltas[expiration].putsExtrinsic} />
+	
 						<!-- {#if expiration in maintenanceBuyingPower && quantities[expiration].shortPuts}
 						<KeyValue key="Average BPR / short put" value={Math.round(maintenanceBuyingPower[expiration].puts / quantities[expiration].shortPuts)} />
 					{/if} -->
