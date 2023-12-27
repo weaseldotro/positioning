@@ -7,6 +7,8 @@ export interface PositionWithBidAsk extends Position {
 	iv?: number
 	delta?: number
 	theo?: number
+	extrinsic?: number
+	intrinsic?: number
 }
 
 export const tastytradePositions = writable<(PositionWithBidAsk)[]>([])
