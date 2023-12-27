@@ -251,7 +251,7 @@
 		totals.putDeltas = roundNumber(totals.putDeltas)
 		totals.netDelta = roundNumber(totals.shortCallsDeltas + totals.longCallsDeltas + totals.shortPutsDeltas + totals.longPutsDeltas)
 		totals.totalDeltas = roundNumber(Math.abs(totals.shortCallsDeltas + totals.longCallsDeltas) + Math.abs(totals.shortPutsDeltas + totals.longPutsDeltas))
-		totals.deltaImbalance = roundNumber(totals.netDelta / totals.totalDeltas)
+		totals.deltaImbalance = roundNumber(totals.netDelta / totals.totalDeltas * 100)
 		totals.intrinsic = roundNumber(totals.intrinsic)
 		totals.extrinsic = roundNumber(totals.extrinsic)
 	}
@@ -280,8 +280,8 @@
 					<KeyValue key="Extrinsic" value={totals.extrinsic} />
 				</div>
 
-				<div class="mt-2"></div>
-				<div class="mt-2"></div>
+				<div class="mt-3"></div>
+				<div class="mt-3 hidden sm:block"></div>
 
 				<div>
 					<KeyValue key="Call deltas" value={totals.callDeltas} />
@@ -330,6 +330,9 @@
 						<KeyValue key="Delta imbalance" value={(deltas[expiration].deltaImbalance > 0 ? '+' : '') + deltas[expiration].deltaImbalance + '%'} />
 						<KeyValue key="Extrinsic" value={deltas[expiration].extrinsic} />
 					</div>
+
+					<div class="mt-3"></div>
+					<div class="mt-3 hidden sm:block"></div>
 
 					<div>
 						<KeyValue key="Call deltas" value={deltas[expiration].callDeltas} />
