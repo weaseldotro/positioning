@@ -118,7 +118,7 @@
 		</div>
 
 		<div class="flex flex-wrap md:flex-nowrap items-center justify-normal gap-2 md:gap-5 text-sm">
-			<DxfeedStatus />
+			<!-- <DxfeedStatus /> -->
 			<AccountSelector />
 		</div>
 	</div>
