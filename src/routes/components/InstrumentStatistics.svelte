@@ -175,22 +175,6 @@
 					totalQuantity.longPutsQty += position.quantity
 				}
 			}
-
-			if (position.instrument.side == 'call') {
-				for (let j = 0; j < callPositions.length; j++) {
-					if (callPositions[j].instrument.dxfeedSymbol == position.instrument.dxfeedSymbol) {
-						callPositions[j] = position
-						break
-					}
-				}
-			} else {
-				for (let j = 0; j < putPositions.length; j++) {
-					if (putPositions[j].instrument.dxfeedSymbol == position.instrument.dxfeedSymbol) {
-						putPositions[j] = position
-						break
-					}
-				}
-			}
 		})
 
 		maintenanceBuyingPower = {}
@@ -248,6 +232,13 @@
 				let expiration = position.instrument.expiration as string
 
 				if (position.instrument.side == 'call') {
+					for (let j = 0; j < callPositions.length; j++) {
+						if (callPositions[j].instrument.dxfeedSymbol == position.instrument.dxfeedSymbol) {
+							callPositions[j] = position
+							break
+						}
+					}
+
 					if (position['quantity-direction'] == 'Long') {
 						statistics[expiration].longCallsDelta += (position.delta as number) * position.quantity
 						statistics[expiration].callGamma += (position.gamma as number) * position.quantity
@@ -260,6 +251,13 @@
 						statistics[expiration].callVega += (position.vega as number) * -position.quantity
 					}
 				} else {
+					for (let j = 0; j < putPositions.length; j++) {
+						if (putPositions[j].instrument.dxfeedSymbol == position.instrument.dxfeedSymbol) {
+							putPositions[j] = position
+							break
+						}
+					}
+
 					if (position['quantity-direction'] == 'Long') {
 						statistics[expiration].longPutsDelta += (position.delta as number) * position.quantity
 						statistics[expiration].putGamma += (position.gamma as number) * position.quantity
