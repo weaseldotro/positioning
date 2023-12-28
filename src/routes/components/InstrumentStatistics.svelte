@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { blackScholes, getDelta, getImpliedVolatility } from '$lib/black-scholes'
-	import { calculateDTE, calculateEquityOptionsMaintenanceBuyingPower, calculateQuantities, type MaintenanceBuyingPower, type Quantities, type Quantity } from '$lib/calculate'
+	import { blackScholes, getDelta, getGamma, getImpliedVolatility, getTheta, getVega } from '$lib/black-scholes'
+	import { calculateDTE, calculateEquityOptionsMaintenanceBuyingPower, type MaintenanceBuyingPower, type Quantity } from '$lib/calculate'
 	import { trades } from '$lib/market'
 	import { roundNumber } from '$lib/math'
-	import { tastytradePositions, type PositionWithBidAsk } from '$lib/positions'
+	import { tastytradePositions, type PositionWithBidAsk, getMaintenanceBuyingPower } from '$lib/positions'
 	import { Badge, Spinner, Table, TableBody, TableBodyCell, TableBodyRow, TableHead, TableHeadCell } from 'flowbite-svelte'
 	import KeyValue from './KeyValue.svelte'
+	import { OptionSide } from '$lib/types'
 
 	export let instrument: string
 
@@ -15,7 +16,6 @@
 	let maintenanceBuyingPower: MaintenanceBuyingPower = {}
 	let callsMaintenanceBuyingPower = 0
 	let putsMaintenanceBuyingPower = 0
-	let quantities: Quantities = {}
 	let totalQuantity: Quantity = {
 		shortCallsQty: 0,
 		longCallsQty: 0,
@@ -27,6 +27,71 @@
 	let callPositions: PositionWithBidAsk[] = []
 	let putPositions: PositionWithBidAsk[] = []
 	let greeksInitialized = false
+
+	interface Statistics {
+		netDelta: number
+		totalDelta: number
+		netGamma: number
+		netTheta: number
+		netVega: number
+		shortCallsQty: number
+		longCallsQty: number
+		shortPutsQty: number
+		longPutsQty: number
+		shortCallsDelta: number
+		longCallsDelta: number
+		shortPutsDelta: number
+		longPutsDelta: number
+		callDelta: number
+		putDelta: number
+		callGamma: number
+		putGamma: number
+		callTheta: number
+		putTheta: number
+		callVega: number
+		putVega: number
+		callsExtrinsic: number
+		callsIntrinsic: number
+		putsExtrinsic: number
+		putsIntrinsic: number
+		deltaImbalance: number
+		extrinsic: number
+		intrinsic: number
+	}
+
+	let statistics: Record<string, Statistics> = {} // expiration => Statistics
+	let totals: Statistics = {
+		netGamma: 0,
+		netTheta: 0,
+		netVega: 0,
+		shortCallsQty: 0,
+		longCallsQty: 0,
+		shortPutsQty: 0,
+		longPutsQty: 0,
+		shortCallsDelta: 0,
+		longCallsDelta: 0,
+		shortPutsDelta: 0,
+		longPutsDelta: 0,
+		callsExtrinsic: 0,
+		callsIntrinsic: 0,
+		putsExtrinsic: 0,
+		putsIntrinsic: 0,
+		callDelta: 0,
+		putDelta: 0,
+		netDelta: 0,
+		callGamma: 0,
+		putGamma: 0,
+		callTheta: 0,
+		putTheta: 0,
+		callVega: 0,
+		putVega: 0,
+		totalDelta: 0,
+		deltaImbalance: 0,
+		extrinsic: 0,
+		intrinsic: 0,
+	}
+
+	const statisticsGreeks = ['shortCallsDelta', 'longCallsDelta', 'shortPutsDelta', 'longPutsDelta', 'callDelta', 'putDelta', 'netDelta', 'callsExtrinsic', 'callsIntrinsic', 'putsExtrinsic', 'putsIntrinsic', 'totalDelta', 'extrinsic', 'intrinsic', 'putGamma', 'callTheta', 'putTheta', 'callVega', 'putVega', 'callGamma', 'netGamma', 'netTheta', 'netVega', 'deltaImbalance']
 
 	const updateInstrument = () => {
 		let newExpirations: string[] = []
@@ -58,6 +123,74 @@
 			} else {
 				putPositions.push(position)
 			}
+
+			let expiration = position.instrument.expiration as string
+			if (!(expiration in statistics)) {
+				statistics[expiration] = {
+					netGamma: 0,
+					netTheta: 0,
+					netVega: 0,
+					shortCallsQty: 0,
+					longCallsQty: 0,
+					shortPutsQty: 0,
+					longPutsQty: 0,
+					shortCallsDelta: 0,
+					longCallsDelta: 0,
+					shortPutsDelta: 0,
+					longPutsDelta: 0,
+					callDelta: 0,
+					putDelta: 0,
+					callsExtrinsic: 0,
+					callsIntrinsic: 0,
+					putsExtrinsic: 0,
+					putsIntrinsic: 0,
+					netDelta: 0,
+					totalDelta: 0,
+					deltaImbalance: 0,
+					callGamma: 0,
+					putGamma: 0,
+					callTheta: 0,
+					putTheta: 0,
+					callVega: 0,
+					putVega: 0,
+					extrinsic: 0,
+					intrinsic: 0,
+				}
+			}
+
+			if (position.instrument.side == OptionSide.call) {
+				if (position['quantity-direction'] == 'Short') {
+					statistics[expiration].shortCallsQty += position.quantity
+					totalQuantity.shortCallsQty += position.quantity
+				} else if (position['quantity-direction'] == 'Long') {
+					statistics[expiration].longCallsQty += position.quantity
+					totalQuantity.longCallsQty += position.quantity
+				}
+			} else if (position.instrument.side == OptionSide.put) {
+				if (position['quantity-direction'] == 'Short') {
+					statistics[expiration].shortPutsQty += position.quantity
+					totalQuantity.shortPutsQty += position.quantity
+				} else if (position['quantity-direction'] == 'Long') {
+					statistics[expiration].longPutsQty += position.quantity
+					totalQuantity.longPutsQty += position.quantity
+				}
+			}
+
+			if (position.instrument.side == 'call') {
+				for (let j = 0; j < callPositions.length; j++) {
+					if (callPositions[j].instrument.dxfeedSymbol == position.instrument.dxfeedSymbol) {
+						callPositions[j] = position
+						break
+					}
+				}
+			} else {
+				for (let j = 0; j < putPositions.length; j++) {
+					if (putPositions[j].instrument.dxfeedSymbol == position.instrument.dxfeedSymbol) {
+						putPositions[j] = position
+						break
+					}
+				}
+			}
 		})
 
 		maintenanceBuyingPower = {}
@@ -69,14 +202,6 @@
 				putsMaintenanceBuyingPower += bp.puts
 			}
 		}
-
-		quantities = calculateQuantities(instrument)
-		Object.values(quantities).forEach((quantity) => {
-			totalQuantity.shortCallsQty += quantity.shortCallsQty
-			totalQuantity.longCallsQty += quantity.longCallsQty
-			totalQuantity.shortPutsQty += quantity.shortPutsQty
-			totalQuantity.longPutsQty += quantity.longPutsQty
-		})
 
 		if (newExpirations.length > 0) {
 			newExpirations.sort((a, b) => {
@@ -93,51 +218,19 @@
 		setInterval(updateGreeks, 1000)
 	}
 
-	interface Totals {
-		shortCallsDeltas: number
-		longCallsDeltas: number
-		shortPutsDeltas: number
-		longPutsDeltas: number
-		callDeltas: number
-		putDeltas: number
-		netDelta: number
-		callsExtrinsic: number
-		callsIntrinsic: number
-		putsExtrinsic: number
-		putsIntrinsic: number
-		totalDeltas: number
-		deltaImbalance: number
-		extrinsic: number
-		intrinsic: number
-	}
-
-	let deltas: Record<string, Totals> = {}
-	let totals: Totals = {
-		shortCallsDeltas: 0,
-		longCallsDeltas: 0,
-		shortPutsDeltas: 0,
-		longPutsDeltas: 0,
-		callsExtrinsic: 0,
-		callsIntrinsic: 0,
-		putsExtrinsic: 0,
-		putsIntrinsic: 0,
-		callDeltas: 0,
-		putDeltas: 0,
-		netDelta: 0,
-		totalDeltas: 0,
-		deltaImbalance: 0,
-		extrinsic: 0,
-		intrinsic: 0,
-	}
-
 	const updateGreeks = () => {
-		deltas = {}
+		for (let expiration of Object.keys(statistics)) {
+			for (let prop of statisticsGreeks) {
+				// @ts-ignore
+				statistics[expiration][prop] = 0
+			}
+		}
+
 		let price = roundNumber($trades[instrument])
 		$tastytradePositions.forEach((position, i) => {
 			if (position['underlying-symbol'] != instrument) {
 				return
 			}
-			// console.log('instrument', instrument, 'bid', position.bid, 'ask', position.ask)
 
 			if (position.bid && position.ask) {
 				let timeToExpiration = (new Date(position['expires-at']).getTime() - new Date().getTime()) / 31536000000
@@ -145,73 +238,60 @@
 				let iv = getImpliedVolatility(mid, price, position.instrument.strike as number, timeToExpiration, 0, position.instrument.side as string, 0.0001)
 				$tastytradePositions[i].iv = iv
 				$tastytradePositions[i].delta = getDelta(price, position.instrument.strike as number, timeToExpiration, iv, 0, position.instrument.side as string) * 100
+				$tastytradePositions[i].gamma = getGamma(price, position.instrument.strike as number, timeToExpiration, iv, 0) * 100
+				$tastytradePositions[i].theta = getTheta(price, position.instrument.strike as number, timeToExpiration, iv, 0, position.instrument.side as string, 360) * 100
+				$tastytradePositions[i].vega = getVega(price, position.instrument.strike as number, timeToExpiration, iv, 0) * 100
 				$tastytradePositions[i].theo = blackScholes(price, position.instrument.strike as number, timeToExpiration, iv, 0, position.instrument.side as string)
 				$tastytradePositions[i].intrinsic = (position.instrument.side == 'call' ? Math.max(0, price - (position.instrument.strike as number)) : Math.max(0, (position.instrument.strike as number) - price)) * 100 * position.quantity * (position['quantity-direction'] == 'Short' ? 1 : -1)
 				$tastytradePositions[i].extrinsic = (mid - ($tastytradePositions[i].intrinsic as number)) * 100 * position.quantity * (position['quantity-direction'] == 'Short' ? 1 : -1)
 
-				if (position.instrument.side == 'call') {
-					for (let j = 0; j < callPositions.length; j++) {
-						if (callPositions[j].instrument.dxfeedSymbol == position.instrument.dxfeedSymbol) {
-							callPositions[j] = position
-							break
-						}
-					}
-				} else {
-					for (let j = 0; j < putPositions.length; j++) {
-						if (putPositions[j].instrument.dxfeedSymbol == position.instrument.dxfeedSymbol) {
-							putPositions[j] = position
-							break
-						}
-					}
-				}
-
 				let expiration = position.instrument.expiration as string
-				if (!(expiration in deltas)) {
-					deltas[expiration] = {
-						shortCallsDeltas: 0,
-						longCallsDeltas: 0,
-						shortPutsDeltas: 0,
-						longPutsDeltas: 0,
-						callDeltas: 0,
-						putDeltas: 0,
-						callsExtrinsic: 0,
-						callsIntrinsic: 0,
-						putsExtrinsic: 0,
-						putsIntrinsic: 0,
-						netDelta: 0,
-						totalDeltas: 0,
-						deltaImbalance: 0,
-						extrinsic: 0,
-						intrinsic: 0,
-					}
-				}
 
 				if (position.instrument.side == 'call') {
 					if (position['quantity-direction'] == 'Long') {
-						deltas[expiration].longCallsDeltas += (position.delta as number) * position.quantity
+						statistics[expiration].longCallsDelta += (position.delta as number) * position.quantity
+						statistics[expiration].callGamma += (position.gamma as number) * position.quantity
+						statistics[expiration].callTheta += (position.theta as number) * position.quantity
+						statistics[expiration].callVega += (position.vega as number) * position.quantity
 					} else {
-						deltas[expiration].shortCallsDeltas += (position.delta as number) * -position.quantity
+						statistics[expiration].shortCallsDelta += (position.delta as number) * -position.quantity
+						statistics[expiration].callGamma += (position.gamma as number) * -position.quantity
+						statistics[expiration].callTheta += (position.theta as number) * -position.quantity
+						statistics[expiration].callVega += (position.vega as number) * -position.quantity
 					}
 				} else {
 					if (position['quantity-direction'] == 'Long') {
-						deltas[expiration].longPutsDeltas += (position.delta as number) * position.quantity
+						statistics[expiration].longPutsDelta += (position.delta as number) * position.quantity
+						statistics[expiration].putGamma += (position.gamma as number) * position.quantity
+						statistics[expiration].putTheta += (position.theta as number) * position.quantity
+						statistics[expiration].putVega += (position.vega as number) * position.quantity
 					} else {
-						deltas[expiration].shortPutsDeltas += (position.delta as number) * -position.quantity
+						statistics[expiration].shortPutsDelta += (position.delta as number) * -position.quantity
+						statistics[expiration].putGamma += (position.gamma as number) * -position.quantity
+						statistics[expiration].putTheta += (position.theta as number) * -position.quantity
+						statistics[expiration].putVega += (position.vega as number) * -position.quantity
 					}
 				}
 
-				deltas[expiration].netDelta = roundNumber(deltas[expiration].shortCallsDeltas + deltas[expiration].longCallsDeltas + deltas[expiration].shortPutsDeltas + deltas[expiration].longPutsDeltas)
-				deltas[expiration].totalDeltas = Math.abs(deltas[expiration].shortCallsDeltas + deltas[expiration].longCallsDeltas) + Math.abs(deltas[expiration].shortPutsDeltas + deltas[expiration].longPutsDeltas)
-				deltas[expiration].deltaImbalance = roundNumber((deltas[expiration].netDelta / deltas[expiration].totalDeltas) * 100)
-				deltas[expiration].intrinsic += $tastytradePositions[i].intrinsic as number
-				deltas[expiration].extrinsic += $tastytradePositions[i].extrinsic as number
+				statistics[expiration].callDelta = roundNumber(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta)
+				statistics[expiration].putDelta = roundNumber(statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta)
+				statistics[expiration].netDelta = roundNumber(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta + statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta)
+				statistics[expiration].totalDelta = Math.abs(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta) + Math.abs(statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta)
+				statistics[expiration].deltaImbalance = roundNumber((statistics[expiration].netDelta / statistics[expiration].totalDelta) * 100)
+
+				statistics[expiration].netTheta = roundNumber(statistics[expiration].callTheta + statistics[expiration].putTheta)
+				statistics[expiration].netGamma = roundNumber(statistics[expiration].callGamma + statistics[expiration].putGamma)
+				statistics[expiration].netVega = roundNumber(statistics[expiration].callVega + statistics[expiration].putVega)
+
+				statistics[expiration].intrinsic += $tastytradePositions[i].intrinsic as number
+				statistics[expiration].extrinsic += $tastytradePositions[i].extrinsic as number
 
 				if (position.instrument.side == 'call') {
-					deltas[expiration].callsIntrinsic += $tastytradePositions[i].intrinsic as number
-					deltas[expiration].callsExtrinsic += $tastytradePositions[i].extrinsic as number
+					statistics[expiration].callsIntrinsic += $tastytradePositions[i].intrinsic as number
+					statistics[expiration].callsExtrinsic += $tastytradePositions[i].extrinsic as number
 				} else {
-					deltas[expiration].putsIntrinsic += $tastytradePositions[i].intrinsic as number
-					deltas[expiration].putsExtrinsic += $tastytradePositions[i].extrinsic as number
+					statistics[expiration].putsIntrinsic += $tastytradePositions[i].intrinsic as number
+					statistics[expiration].putsExtrinsic += $tastytradePositions[i].extrinsic as number
 				}
 			}
 		})
@@ -224,72 +304,23 @@
 			return (a.delta as number) - (b.delta as number)
 		})
 
-		greeksInitialized = true
-
-		// multiply deltas by 100 and round
-		Object.values(deltas).forEach((d) => {
-			d.shortCallsDeltas = roundNumber(d.shortCallsDeltas)
-			d.longCallsDeltas = roundNumber(d.longCallsDeltas)
-			d.shortPutsDeltas = roundNumber(d.shortPutsDeltas)
-			d.longPutsDeltas = roundNumber(d.longPutsDeltas)
-			d.callDeltas = roundNumber(d.shortCallsDeltas + d.longCallsDeltas)
-			d.putDeltas = roundNumber(d.shortPutsDeltas + d.longPutsDeltas)
-			d.intrinsic = roundNumber(d.intrinsic)
-			d.extrinsic = roundNumber(d.extrinsic)
-			d.callsExtrinsic = roundNumber(d.callsExtrinsic)
-			d.callsIntrinsic = roundNumber(d.callsIntrinsic)
-			d.putsExtrinsic = roundNumber(d.putsExtrinsic)
-			d.putsIntrinsic = roundNumber(d.putsIntrinsic)
-		})
-
-		// sum up all the deltas for all expirations
-		totals = {
-			shortCallsDeltas: 0,
-			longCallsDeltas: 0,
-			shortPutsDeltas: 0,
-			longPutsDeltas: 0,
-			callDeltas: 0,
-			putDeltas: 0,
-			netDelta: 0,
-			callsExtrinsic: 0,
-			callsIntrinsic: 0,
-			putsExtrinsic: 0,
-			putsIntrinsic: 0,
-			totalDeltas: 0,
-			deltaImbalance: 0,
-			extrinsic: 0,
-			intrinsic: 0,
+		// round the statistics values
+		for (let expiration of Object.keys(statistics)) {
+			for (let prop of statisticsGreeks) {
+				// @ts-ignore
+				statistics[expiration][prop] = roundNumber(statistics[expiration][prop])
+			}
 		}
-		Object.values(deltas).forEach((d) => {
-			totals.shortCallsDeltas += d.shortCallsDeltas
-			totals.longCallsDeltas += d.longCallsDeltas
-			totals.shortPutsDeltas += d.shortPutsDeltas
-			totals.longPutsDeltas += d.longPutsDeltas
-			totals.callDeltas += d.callDeltas
-			totals.putDeltas += d.putDeltas
-			totals.intrinsic += d.intrinsic
-			totals.extrinsic += d.extrinsic
-			totals.callsExtrinsic += d.callsExtrinsic
-			totals.callsIntrinsic += d.callsIntrinsic
-			totals.putsExtrinsic += d.putsExtrinsic
-			totals.putsIntrinsic += d.putsIntrinsic
-		})
 
-		totals.shortCallsDeltas = roundNumber(totals.shortCallsDeltas)
-		totals.longCallsDeltas = roundNumber(totals.longCallsDeltas)
-		totals.shortPutsDeltas = roundNumber(totals.shortPutsDeltas)
-		totals.longPutsDeltas = roundNumber(totals.longPutsDeltas)
-		totals.callDeltas = roundNumber(totals.callDeltas)
-		totals.putDeltas = roundNumber(totals.putDeltas)
-		totals.netDelta = roundNumber(totals.shortCallsDeltas + totals.longCallsDeltas + totals.shortPutsDeltas + totals.longPutsDeltas)
-		totals.totalDeltas = roundNumber(Math.abs(totals.shortCallsDeltas + totals.longCallsDeltas) + Math.abs(totals.shortPutsDeltas + totals.longPutsDeltas))
-		totals.deltaImbalance = roundNumber((totals.netDelta / totals.totalDeltas) * 100)
-		totals.intrinsic = roundNumber(totals.intrinsic)
-		totals.extrinsic = roundNumber(totals.extrinsic)
-		totals.callsExtrinsic = roundNumber(totals.callsExtrinsic)
-		totals.callsIntrinsic = roundNumber(totals.callsIntrinsic)
-		totals.putsExtrinsic = roundNumber(totals.putsExtrinsic)
-		totals.putsIntrinsic = roundNumber(totals.putsIntrinsic)
+		// sum up all the delta for all expirations
+		for (let prop of statisticsGreeks) {
+			// @ts-ignore
+			totals[prop] = roundNumber(Object.values(statistics).reduce((a, b) => a + (b[prop] || 0), 0))
+		}
+
+		totals.deltaImbalance = roundNumber((totals.netDelta / totals.totalDelta) * 100)
+
+		greeksInitialized = true
 	}
 
 	$: if (instrument) {
@@ -299,54 +330,69 @@
 
 {#if greeksInitialized}
 	<div class="flex flex-wrap gap-3 justify-center items-start">
-		<div class="w-full max-w-xl p-2 border border-green-400 mb-3">
-			<h2 class="p-2 bg-green-200 mb-2 font-semibold -mt-2 -mx-2 text-center">
-				{instrument}
-				{#if $trades && $trades[instrument]}
-					${$trades[instrument]}{/if}
+		<div class="w-full max-w-xl p-2 border border-green-300">
+			<h2 class="p-2 bg-green-200 mb-2 font-semibold -mt-2 -mx-2 flex justify-between">
+				<div class="w-20">{instrument}</div>
+				<div>Totals</div>
+				<div class="w-20 text-right">
+					{#if $trades && $trades[instrument]}${$trades[instrument]}{/if}
+				</div>
 			</h2>
 
 			<div class="grid sm:grid-cols-2 gap-x-3">
 				<div>
-					<KeyValue key="Net delta" value={totals.netDelta} />
-					<KeyValue key="Intrinsic" value={totals.intrinsic} />
+					<KeyValue key="Delta" value={totals.netDelta} />
+					<KeyValue key="Gamma" value={totals.netGamma} />
+					<KeyValue key="Theta" value={totals.netTheta} />
+					<KeyValue key="Vega" value={totals.netVega} />
 				</div>
 				<div>
 					<KeyValue key="Delta imbalance" value={(totals.deltaImbalance > 0 ? '+' : '') + totals.deltaImbalance + '%'} />
+					<KeyValue key="Intrinsic" value={totals.intrinsic} />
 					<KeyValue key="Extrinsic" value={totals.extrinsic} />
+					<KeyValue key="BPR" value={getMaintenanceBuyingPower(instrument)} />
 				</div>
 
 				<div class="mt-3"></div>
 				<div class="mt-3 hidden sm:block"></div>
 
 				<div>
-					<KeyValue key="Call deltas" value={totals.callDeltas} />
-					<KeyValue key="Short calls deltas" value={totals.shortCallsDeltas} />
-					<KeyValue key="Long calls deltas" value={totals.longCallsDeltas} />
-					<KeyValue key="Short calls qty" value={totalQuantity.shortCallsQty} />
-					<KeyValue key="Long calls qty" value={totalQuantity.longCallsQty} />
+					<h3 class="font-semibold text-center bg-slate-100">Calls</h3>
+					<KeyValue key="Delta" value={totals.callDelta} />
+					<KeyValue key="Short delta" value={totals.shortCallsDelta} />
+					<KeyValue key="Long delta" value={totals.longCallsDelta} />
+					<KeyValue key="Gamma" value={totals.callGamma} />
+					<KeyValue key="Theta" value={totals.callTheta} />
+					<KeyValue key="Vega" value={totals.callVega} />
+
+					<KeyValue key="Short qty" value={totalQuantity.shortCallsQty} />
+					<KeyValue key="Long qty" value={totalQuantity.longCallsQty} />
+					<KeyValue key="Intrinsic" value={totals.callsIntrinsic} />
+					<KeyValue key="Extrinsic" value={totals.callsExtrinsic} />
 					{#if callsMaintenanceBuyingPower}
-						<KeyValue key="Calls BPR" value={callsMaintenanceBuyingPower} />
+						<KeyValue key="BPR" value={callsMaintenanceBuyingPower} />
 					{/if}
-					<KeyValue key="Calls intrinsic" value={totals.callsIntrinsic} />
-					<KeyValue key="Calls extrinsic" value={totals.callsExtrinsic} />
 					<!-- {#if callsMaintenanceBuyingPower && totalQuantity.shortCalls}
 					<KeyValue key="Average BPR / short call" value={Math.round(callsMaintenanceBuyingPower / totalQuantity.shortCalls)} />
 				{/if} -->
 				</div>
 
 				<div>
-					<KeyValue key="Put deltas" value={totals.putDeltas} />
-					<KeyValue key="Short put deltas" value={totals.shortPutsDeltas} />
-					<KeyValue key="Long put deltas" value={totals.longPutsDeltas} />
+					<h3 class="font-semibold text-center bg-slate-100">Puts</h3>
+					<KeyValue key="Delta" value={totals.putDelta} />
+					<KeyValue key="Short delta" value={totals.shortPutsDelta} />
+					<KeyValue key="Long delta" value={totals.longPutsDelta} />
+					<KeyValue key="Gamma" value={totals.putGamma} />
+					<KeyValue key="Theta" value={totals.putTheta} />
+					<KeyValue key="Vega" value={totals.putVega} />
 
-					<KeyValue key="Short puts qty" value={totalQuantity.shortPutsQty} />
-					<KeyValue key="Long puts qty" value={totalQuantity.longPutsQty} />
+					<KeyValue key="Short qty" value={totalQuantity.shortPutsQty} />
+					<KeyValue key="Long qty" value={totalQuantity.longPutsQty} />
+					<KeyValue key="Intrinsic" value={totals.putsIntrinsic} />
+					<KeyValue key="Extrinsic" value={totals.putsExtrinsic} />
 					{#if putsMaintenanceBuyingPower}
-						<KeyValue key="Puts BPR" value={putsMaintenanceBuyingPower} />
+						<KeyValue key="BPR" value={putsMaintenanceBuyingPower} />
 					{/if}
-					<KeyValue key="Puts intrinsic" value={totals.putsIntrinsic} />
-					<KeyValue key="Puts extrinsic" value={totals.putsExtrinsic} />
 					<!-- {#if putsMaintenanceBuyingPower && totalQuantity.shortPuts}
 					<KeyValue key="Average BPR / short put" value={Math.round(putsMaintenanceBuyingPower / totalQuantity.shortPuts)} />
 				{/if} -->
@@ -355,52 +401,67 @@
 		</div>
 
 		{#each expirations as expiration}
-			<div class="w-full max-w-xl p-2 border border-blue-400">
-				<h2 class="p-2 bg-blue-100 mb-2 font-semibold -mt-2 -mx-2 text-center">
-					{instrument}
-					{expiration} expiration ({calculateDTE(expiration)} DTE)
+			<div class="w-full max-w-xl p-2 border border-blue-200">
+				<h2 class="p-2 bg-blue-100 mb-2 font-semibold -mt-2 -mx-2 flex justify-between">
+					<div class="w-20">{instrument}</div>
+					<div>{new Date(expiration).toLocaleDateString()} expiration</div>
+					<div class="w-20 text-right">{calculateDTE(expiration)} DTE</div>
 				</h2>
 
 				<div class="grid sm:grid-cols-2 gap-x-3">
 					<div>
-						<KeyValue key="Net delta" value={deltas[expiration].netDelta} />
-						<KeyValue key="Intrinsic" value={deltas[expiration].intrinsic} />
+						<KeyValue key="Delta" value={statistics[expiration].netDelta} />
+						<KeyValue key="Gamma" value={statistics[expiration].netGamma} />
+						<KeyValue key="Theta" value={statistics[expiration].netTheta} />
+						<KeyValue key="Vega" value={statistics[expiration].netVega} />
 					</div>
 					<div>
-						<KeyValue key="Delta imbalance" value={(deltas[expiration].deltaImbalance > 0 ? '+' : '') + deltas[expiration].deltaImbalance + '%'} />
-						<KeyValue key="Extrinsic" value={deltas[expiration].extrinsic} />
+						<KeyValue key="Delta imbalance" value={(statistics[expiration].deltaImbalance > 0 ? '+' : '') + statistics[expiration].deltaImbalance + '%'} />
+						<KeyValue key="Intrinsic" value={statistics[expiration].intrinsic} />
+						<KeyValue key="Extrinsic" value={statistics[expiration].extrinsic} />
+						<KeyValue key="BPR" value={maintenanceBuyingPower[expiration].calls > maintenanceBuyingPower[expiration].puts ? maintenanceBuyingPower[expiration].calls : maintenanceBuyingPower[expiration].puts} />
 					</div>
 
 					<div class="mt-3"></div>
 					<div class="mt-3 hidden sm:block"></div>
 
 					<div>
-						<KeyValue key="Call deltas" value={deltas[expiration].callDeltas} />
-						<KeyValue key="Short calls deltas" value={deltas[expiration].shortCallsDeltas} />
-						<KeyValue key="Long calls deltas" value={deltas[expiration].longCallsDeltas} />
-						<KeyValue key="Short calls qty" value={quantities[expiration].shortCallsQty} />
-						<KeyValue key="Long calls qty" value={quantities[expiration].longCallsQty} />
-						<KeyValue key="Calls BPR" value={maintenanceBuyingPower[expiration].calls} />
-						<KeyValue key="Calls intrinsic" value={deltas[expiration].callsIntrinsic} />
-						<KeyValue key="Calls extrinsic" value={deltas[expiration].callsExtrinsic} />
-	
-						<!-- {#if expiration in maintenanceBuyingPower && quantities[expiration].shortCalls}
-						<KeyValue key="Average BPR / short call" value={Math.round(maintenanceBuyingPower[expiration].calls / quantities[expiration].shortCalls)} />
+						<h3 class="font-semibold text-center bg-slate-100">Calls</h3>
+						<KeyValue key="Delta" value={statistics[expiration].callDelta} />
+						<KeyValue key="Short delta" value={statistics[expiration].shortCallsDelta} />
+						<KeyValue key="Long delta" value={statistics[expiration].longCallsDelta} />
+						<KeyValue key="Gamma" value={statistics[expiration].callGamma} />
+						<KeyValue key="Theta" value={statistics[expiration].callTheta} />
+						<KeyValue key="Vega" value={statistics[expiration].callVega} />
+
+						<KeyValue key="Short qty" value={statistics[expiration].shortCallsQty} />
+						<KeyValue key="Long qty" value={statistics[expiration].longCallsQty} />
+						<KeyValue key="Intrinsic" value={statistics[expiration].callsIntrinsic} />
+						<KeyValue key="Extrinsic" value={statistics[expiration].callsExtrinsic} />
+						<KeyValue key="BPR" value={maintenanceBuyingPower[expiration].calls} />
+
+						<!-- {#if expiration in maintenanceBuyingPower && statistics[expiration].shortCalls}
+						<KeyValue key="Average BPR / short call" value={Math.round(maintenanceBuyingPower[expiration].calls / statistics[expiration].shortCalls)} />
 					{/if} -->
 					</div>
 
 					<div>
-						<KeyValue key="Put deltas" value={deltas[expiration].putDeltas} />
-						<KeyValue key="Short put deltas" value={deltas[expiration].shortPutsDeltas} />
-						<KeyValue key="Long put deltas" value={deltas[expiration].longPutsDeltas} />
-						<KeyValue key="Short puts qty" value={quantities[expiration].shortPutsQty} />
-						<KeyValue key="Long puts qty" value={quantities[expiration].longPutsQty} />
-						<KeyValue key="Puts BPR" value={maintenanceBuyingPower[expiration].puts} />
-						<KeyValue key="Puts intrinsic" value={deltas[expiration].putsIntrinsic} />
-						<KeyValue key="Puts extrinsic" value={deltas[expiration].putsExtrinsic} />
-	
-						<!-- {#if expiration in maintenanceBuyingPower && quantities[expiration].shortPuts}
-						<KeyValue key="Average BPR / short put" value={Math.round(maintenanceBuyingPower[expiration].puts / quantities[expiration].shortPuts)} />
+						<h3 class="font-semibold text-center bg-slate-100">Puts</h3>
+						<KeyValue key="Delta" value={statistics[expiration].putDelta} />
+						<KeyValue key="Short delta" value={statistics[expiration].shortPutsDelta} />
+						<KeyValue key="Long delta" value={statistics[expiration].longPutsDelta} />
+						<KeyValue key="Gamma" value={statistics[expiration].putGamma} />
+						<KeyValue key="Theta" value={statistics[expiration].putTheta} />
+						<KeyValue key="Vega" value={statistics[expiration].putVega} />
+
+						<KeyValue key="Short qty" value={statistics[expiration].shortPutsQty} />
+						<KeyValue key="Long qty" value={statistics[expiration].longPutsQty} />
+						<KeyValue key="Intrinsic" value={statistics[expiration].putsIntrinsic} />
+						<KeyValue key="Extrinsic" value={statistics[expiration].putsExtrinsic} />
+						<KeyValue key="BPR" value={maintenanceBuyingPower[expiration].puts} />
+
+						<!-- {#if expiration in maintenanceBuyingPower && statistics[expiration].shortPuts}
+						<KeyValue key="Average BPR / short put" value={Math.round(maintenanceBuyingPower[expiration].puts / statistics[expiration].shortPuts)} />
 					{/if} -->
 					</div>
 				</div>
@@ -420,9 +481,12 @@
 						<TableHeadCell class={tdClass}>Strike</TableHeadCell>
 						<TableHeadCell class={tdClass}>Qty</TableHeadCell>
 						<TableHeadCell class={tdClass}>Delta</TableHeadCell>
-						<TableHeadCell class={tdClass}>Total deltas</TableHeadCell>
+						<!-- <TableHeadCell class={tdClass}>Total delta</TableHeadCell> -->
+						<TableHeadCell class={tdClass}>Gamma</TableHeadCell>
+						<TableHeadCell class={tdClass}>Theta</TableHeadCell>
+						<TableHeadCell class={tdClass}>Vega</TableHeadCell>
 						<TableHeadCell class={tdClass}>IV</TableHeadCell>
-						<TableHeadCell class={tdClass}>Theo</TableHeadCell>
+						<!-- <TableHeadCell class={tdClass}>Theo</TableHeadCell> -->
 						<!-- <TableHeadCell class={tdClass}>Intrinsic</TableHeadCell>
 						<TableHeadCell class={tdClass}>Extrinsic</TableHeadCell> -->
 					</TableHead>
@@ -441,9 +505,12 @@
 									</Badge>
 								</TableBodyCell>
 								<TableBodyCell {tdClass}>{position.delta.toFixed(2)}</TableBodyCell>
-								<TableBodyCell {tdClass}>{(position.quantity * position.delta * (position['quantity-direction'] == 'Short' ? -1 : 1)).toFixed(2)}</TableBodyCell>
+								<!-- <TableBodyCell {tdClass}>{(position.quantity * position.delta * (position['quantity-direction'] == 'Short' ? -1 : 1)).toFixed(2)}</TableBodyCell> -->
+								<TableBodyCell {tdClass}>{position.gamma.toFixed(2)}</TableBodyCell>
+								<TableBodyCell {tdClass}>{position.theta.toFixed(2)}</TableBodyCell>
+								<TableBodyCell {tdClass}>{position.vega.toFixed(2)}</TableBodyCell>
 								<TableBodyCell {tdClass}>{(position.iv * 100).toFixed(2)}</TableBodyCell>
-								<TableBodyCell {tdClass}>{position.theo.toFixed(2)}</TableBodyCell>
+								<!-- <TableBodyCell {tdClass}>{position.theo.toFixed(2)}</TableBodyCell> -->
 								<!-- <TableBodyCell {tdClass}>{position.intrinsic.toFixed(2)}</TableBodyCell>
 								<TableBodyCell {tdClass}>{position.extrinsic.toFixed(2)}</TableBodyCell> -->
 							</TableBodyRow>
@@ -464,9 +531,12 @@
 						<TableHeadCell class={tdClass}>Strike</TableHeadCell>
 						<TableHeadCell class={tdClass}>Qty</TableHeadCell>
 						<TableHeadCell class={tdClass}>Delta</TableHeadCell>
-						<TableHeadCell class={tdClass}>Total deltas</TableHeadCell>
+						<!-- <TableHeadCell class={tdClass}>Total delta</TableHeadCell> -->
+						<TableHeadCell class={tdClass}>Gamma</TableHeadCell>
+						<TableHeadCell class={tdClass}>Theta</TableHeadCell>
+						<TableHeadCell class={tdClass}>Vega</TableHeadCell>
 						<TableHeadCell class={tdClass}>IV</TableHeadCell>
-						<TableHeadCell class={tdClass}>Theo</TableHeadCell>
+						<!-- <TableHeadCell class={tdClass}>Theo</TableHeadCell> -->
 						<!-- <TableHeadCell class={tdClass}>Intrinsic</TableHeadCell> -->
 						<!-- <TableHeadCell class={tdClass}>Extrinsic</TableHeadCell> -->
 					</TableHead>
@@ -485,9 +555,12 @@
 									</Badge>
 								</TableBodyCell>
 								<TableBodyCell {tdClass}>{position.delta.toFixed(2)}</TableBodyCell>
-								<TableBodyCell {tdClass}>{(position.quantity * position.delta * (position['quantity-direction'] == 'Short' ? -1 : 1)).toFixed(2)}</TableBodyCell>
+								<!-- <TableBodyCell {tdClass}>{(position.quantity * position.delta * (position['quantity-direction'] == 'Short' ? -1 : 1)).toFixed(2)}</TableBodyCell> -->
+								<TableBodyCell {tdClass}>{position.gamma.toFixed(2)}</TableBodyCell>
+								<TableBodyCell {tdClass}>{position.theta.toFixed(2)}</TableBodyCell>
+								<TableBodyCell {tdClass}>{position.vega.toFixed(2)}</TableBodyCell>
 								<TableBodyCell {tdClass}>{(position.iv * 100).toFixed(2)}</TableBodyCell>
-								<TableBodyCell {tdClass}>{position.theo.toFixed(2)}</TableBodyCell>
+								<!-- <TableBodyCell {tdClass}>{position.theo.toFixed(2)}</TableBodyCell> -->
 								<!-- <TableBodyCell {tdClass}>{position.intrinsic.toFixed(2)}</TableBodyCell>
 								<TableBodyCell {tdClass}>{position.extrinsic.toFixed(2)}</TableBodyCell> -->
 							</TableBodyRow>

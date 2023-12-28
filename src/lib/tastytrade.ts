@@ -508,3 +508,19 @@ export const getPositions = async (accountNumber: string) => {
 	resp = await apiRequest('GET', `/accounts/${accountNumber}/positions`)
 	return resp.data.data.items
 }
+
+export const getMarginRequirements = async (accountNumber: string) => {
+	let resp: {
+		data: {
+			data: {
+				groups: {
+					'underlying-symbol': string
+					'maintenance-requirement': string
+				}[]
+			}
+		}
+	}
+
+	resp = await apiRequest('GET', `/margin/accounts/${accountNumber}/requirements`)
+	return resp.data.data.groups
+}

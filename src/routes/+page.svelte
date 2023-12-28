@@ -126,7 +126,6 @@
 	<div class="p-2">
 		{#if $tastytradeAccount && $tastytradePositions.length > 0}
 			{#each $instruments as instrument}
-				<!-- <h2 class="p-2 mb-2 font-semibold text-xl">{instrument}</h2> -->
 				<InstrumentStatistics {instrument} />
 			{/each}
 		{/if}

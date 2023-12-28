@@ -219,7 +219,7 @@ function _putDelta(s: number, k: number, t: number, v: number, r: number): numbe
  * @param {Number} [scale=100] The value to scale rho by (100=100BPS=1%, 10000=1BPS=.01%)
  * @returns {Number} The rho of the option
  */
-function getRho(s: number, k: number, t: number, v: number, r: number, callPut: string, scale: number): number {
+export function getRho(s: number, k: number, t: number, v: number, r: number, callPut: string, scale: number): number {
     scale = scale || 100;
     if (callPut === "call") {
         return _callRho(s, k, t, v, r) / scale;
@@ -282,7 +282,7 @@ function _putRho(s: number, k: number, t: number, v: number, r: number): number 
  * @param {Number} r Anual risk-free interest rate as a decimal
  * @returns {Number} The vega of the option
  */
-function getVega(s: number, k: number, t: number, v: number, r: number): number {
+export function getVega(s: number, k: number, t: number, v: number, r: number): number {
     var w = getW(s, k, t, v, r);
     return (isFinite(w)) ? (s * Math.sqrt(t) * _stdNormDensity(w) / 100) : 0;
 }
@@ -299,7 +299,7 @@ function getVega(s: number, k: number, t: number, v: number, r: number): number 
  * @param {Number} [scale=365] The number of days to scale theta by - usually 365 or 252
  * @returns {Number} The theta of the option
  */
-function getTheta(s: number, k: number, t: number, v: number, r: number, callPut: string, scale: number): number {
+export function getTheta(s: number, k: number, t: number, v: number, r: number, callPut: string, scale: number): number {
     scale = scale || 365;
     if (callPut === "call") {
         return _callTheta(s, k, t, v, r) / scale;
@@ -362,7 +362,7 @@ function _putTheta(s: number, k: number, t: number, v: number, r: number): numbe
  * @param {Number} r Anual risk-free interest rate as a decimal
  * @returns {Number} The gamma of the option
  */
-function getGamma(s: number, k: number, t: number, v: number, r: number): number {
+export function getGamma(s: number, k: number, t: number, v: number, r: number): number {
     var w = getW(s, k, t, v, r);
     return (isFinite(w)) ? (_stdNormDensity(w) / (s * v * Math.sqrt(t))) : 0;
 }

@@ -1,6 +1,6 @@
 import { get } from 'svelte/store'
 import { tastytradePositions } from './positions'
-import { OptionSide, type Instrument } from './types'
+import { OptionSide } from './types'
 import { tastytradeDecodeOptionsSymbol } from './tastytrade'
 
 export type MaintenanceBuyingPower = Record<string, { calls: number; puts: number }>
@@ -181,44 +181,13 @@ export interface Quantity {
 	longPutsQty: number
 }
 
-export type Quantities = Record<string, Quantity>
-
-export const calculateQuantities = (underlyingInstrument: string): Quantities => {
-	let quantities: Quantities = {}
-	get(tastytradePositions).forEach((position) => {
-		if (position['underlying-symbol'] != underlyingInstrument) {
-			return
-		}
-
-		if (!((position.instrument.expiration as string) in quantities)) {
-			quantities[position.instrument.expiration as string] = {
-				shortCallsQty: 0,
-				longCallsQty: 0,
-				shortPutsQty: 0,
-				longPutsQty: 0,
-			}
-		}
-
-		if (position.instrument.side == OptionSide.call) {
-			if (position['quantity-direction'] == 'Short') {
-				quantities[position.instrument.expiration as string].shortCallsQty += position.quantity
-			} else if (position['quantity-direction'] == 'Long') {
-				quantities[position.instrument.expiration as string].longCallsQty += position.quantity
-			}
-		} else if (position.instrument.side == OptionSide.put) {
-			if (position['quantity-direction'] == 'Short') {
-				quantities[position.instrument.expiration as string].shortPutsQty += position.quantity
-			} else if (position['quantity-direction'] == 'Long') {
-				quantities[position.instrument.expiration as string].longPutsQty += position.quantity
-			}
-		}
-	})
-
-	return quantities
-}
-
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 export const calculateDTE = (date: string) => {
 	return Math.floor(Math.abs((new Date(date + 'T21:00:00Z')).getTime() - (new Date()).getTime()) / MS_PER_DAY);
+}
+
+// betaWeightedDelta formula: stock price / price of SPY * beta * delta
+export const betaWeightedDelta = (stockPrice: number, SPYPrice: number, delta: number, beta: number) => {
+	return stockPrice / SPYPrice * beta * delta
 }
