@@ -7,12 +7,12 @@
 	import { tastytradeSession } from '$lib/tastytrade'
 	import { tastytradeAccount } from '$lib/tastytrade'
 	import AccountSelector from './components/AccountSelector.svelte'
-	import DxfeedStatus from './components/DxfeedStatus.svelte'
 	import { initMarketData, trades } from '$lib/market'
 	import { loadingData } from '$lib/interface'
-	import { instruments, loadPositions, tastytradePositions } from '$lib/positions'
+	import { currentInstrument, instruments, loadPositions, tastytradePositions } from '$lib/positions'
 	import InstrumentStatistics from './components/InstrumentStatistics.svelte'
 	import { EventType } from '@dxfeed/api'
+	import { Button } from 'flowbite-svelte'
 
 	onMount(async () => {
 		if (await checkSession()) {
@@ -61,6 +61,13 @@
 		})
 	}
 
+	const changeAccount = async () => {
+		$loadingData = true
+		await loadPositions()
+		$currentInstrument = $instruments[0]
+		$loadingData = false
+	}
+
 	$: if ($dxfeedConnection == 'connected' && $tastytradeAccount != '' && $tastytradePositions.length > 0) {
 		init()
 	}
@@ -70,7 +77,7 @@
 	}
 
 	$: if ($tastytradeAccount != '') {
-		loadPositions()
+		changeAccount()
 	}
 </script>
 
@@ -125,9 +132,23 @@
 
 	<div class="p-2">
 		{#if $tastytradeAccount && $tastytradePositions.length > 0}
-			{#each $instruments as instrument}
-				<InstrumentStatistics {instrument} />
-			{/each}
+			{#if $instruments.length > 1}
+				<div class="mb-2">
+					{#each $instruments as instrument}
+						<Button
+							color={instrument == $currentInstrument ? 'primary' : 'light'}
+							size="xs"
+							on:click={() => {
+								$currentInstrument = instrument
+							}}>{instrument}</Button
+						>
+					{/each}
+				</div>
+			{/if}
+
+			{#if $currentInstrument}
+				<InstrumentStatistics instrument={$currentInstrument} />
+			{/if}
 		{/if}
 	</div>
 {/if}

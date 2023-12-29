@@ -16,6 +16,7 @@ export interface PositionWithBidAsk extends Position {
 
 export const tastytradePositions = writable<(PositionWithBidAsk)[]>([])
 export const instruments = writable<string[]>([])
+export const currentInstrument = writable<string>('')
 
 let maintenanceBuyingPower: Record<string, number> = {}
 
@@ -46,8 +47,9 @@ export const loadPositions = async () => {
 			newInstruments.sort((a, b) => {
 				return a < b ? -1 : 1
 			})
-			instruments.set(newInstruments)
 		}
+
+		instruments.set(newInstruments)
 	} catch { }
 
 	try {

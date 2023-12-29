@@ -91,9 +91,13 @@
 		intrinsic: 0,
 	}
 
-	const statisticsGreeks = ['shortCallsDelta', 'longCallsDelta', 'shortPutsDelta', 'longPutsDelta', 'callDelta', 'putDelta', 'netDelta', 'callsExtrinsic', 'callsIntrinsic', 'putsExtrinsic', 'putsIntrinsic', 'totalDelta', 'extrinsic', 'intrinsic', 'putGamma', 'callTheta', 'putTheta', 'callVega', 'putVega', 'callGamma', 'netGamma', 'netTheta', 'netVega', 'deltaImbalance']
+	const statisticsGreeks = ['shortCallsDelta', 'longCallsDelta', 'shortPutsDelta', 'longPutsDelta', 'callDelta', 'putDelta', 'netDelta', 'callsExtrinsic', 'callsIntrinsic', 'putsExtrinsic', 'putsIntrinsic', 'totalDelta', 'extrinsic', 'intrinsic', 'putGamma', 'callTheta', 'putTheta', 'callVega', 'putVega', 'callGamma', 'netGamma', 'netTheta', 'netVega']
 
 	const updateInstrument = () => {
+		if(!instrument) {
+			return
+		}
+
 		let newExpirations: string[] = []
 		let multiplier = 0
 		callsMaintenanceBuyingPower = 0
@@ -203,6 +207,12 @@
 	}
 
 	const updateGreeks = () => {
+		if(!(instrument in $trades)) {
+			return
+		}
+
+		let price = roundNumber($trades[instrument])
+
 		for (let expiration of Object.keys(statistics)) {
 			for (let prop of statisticsGreeks) {
 				// @ts-ignore
@@ -210,7 +220,6 @@
 			}
 		}
 
-		let price = roundNumber($trades[instrument])
 		$tastytradePositions.forEach((position, i) => {
 			if (position['underlying-symbol'] != instrument) {
 				return
@@ -271,15 +280,15 @@
 					}
 				}
 
-				statistics[expiration].callDelta = roundNumber(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta)
-				statistics[expiration].putDelta = roundNumber(statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta)
-				statistics[expiration].netDelta = roundNumber(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta + statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta)
+				statistics[expiration].callDelta = roundNumber(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta, 0)
+				statistics[expiration].putDelta = roundNumber(statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta, 0)
+				statistics[expiration].netDelta = roundNumber(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta + statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta, 0)
 				statistics[expiration].totalDelta = Math.abs(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta) + Math.abs(statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta)
-				statistics[expiration].deltaImbalance = roundNumber((statistics[expiration].netDelta / statistics[expiration].totalDelta) * 100)
+				statistics[expiration].deltaImbalance = roundNumber((statistics[expiration].netDelta / statistics[expiration].totalDelta) * 100, 2)
 
-				statistics[expiration].netTheta = roundNumber(statistics[expiration].callTheta + statistics[expiration].putTheta)
-				statistics[expiration].netGamma = roundNumber(statistics[expiration].callGamma + statistics[expiration].putGamma)
-				statistics[expiration].netVega = roundNumber(statistics[expiration].callVega + statistics[expiration].putVega)
+				statistics[expiration].netTheta = roundNumber(statistics[expiration].callTheta + statistics[expiration].putTheta, 0)
+				statistics[expiration].netGamma = roundNumber(statistics[expiration].callGamma + statistics[expiration].putGamma, 0)
+				statistics[expiration].netVega = roundNumber(statistics[expiration].callVega + statistics[expiration].putVega, 0)
 
 				statistics[expiration].intrinsic += $tastytradePositions[i].intrinsic as number
 				statistics[expiration].extrinsic += $tastytradePositions[i].extrinsic as number
@@ -306,14 +315,14 @@
 		for (let expiration of Object.keys(statistics)) {
 			for (let prop of statisticsGreeks) {
 				// @ts-ignore
-				statistics[expiration][prop] = roundNumber(statistics[expiration][prop])
+				statistics[expiration][prop] = roundNumber(statistics[expiration][prop], 0)
 			}
 		}
 
 		// sum up all the delta for all expirations
 		for (let prop of statisticsGreeks) {
 			// @ts-ignore
-			totals[prop] = roundNumber(Object.values(statistics).reduce((a, b) => a + (b[prop] || 0), 0))
+			totals[prop] = roundNumber(Object.values(statistics).reduce((a, b) => a + (b[prop] || 0), 0), 0)
 		}
 
 		totals.deltaImbalance = roundNumber((totals.netDelta / totals.totalDelta) * 100)
@@ -568,6 +577,6 @@
 			{/if}
 		</div>
 	</div>
-{:else}
+{:else if instrument}
 	<Spinner />
 {/if}
