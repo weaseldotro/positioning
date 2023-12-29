@@ -1,3 +1,3 @@
-export const roundNumber = (x: number): number => {
-	return Math.round(x * 100) / 100
+export const roundNumber = (x: number, decimals: number = 2): number => {
+	return Math.round(x * (10 ** decimals)) / (10 ** decimals)
 }
