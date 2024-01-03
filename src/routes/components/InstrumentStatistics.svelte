@@ -573,12 +573,12 @@
 										>{#if position['quantity-direction'] == 'Long'}+{:else}-{/if}{position.quantity}
 									</Badge>
 								</TableBodyCell>
-								<TableBodyCell {tdClass}>{position.delta ? position.delta.toFixed(2) : ''}</TableBodyCell>
+								<TableBodyCell {tdClass}>{'delta' in position ? position.delta.toFixed(2) : ''}</TableBodyCell>
 								<!-- <TableBodyCell {tdClass}>{(position.quantity * position.delta * (position['quantity-direction'] == 'Short' ? -1 : 1)).toFixed(2)}</TableBodyCell> -->
-								<TableBodyCell {tdClass}>{position.gamma ? position.gamma.toFixed(2) : ''}</TableBodyCell>
-								<TableBodyCell {tdClass}>{position.theta ? position.theta.toFixed(2) : ''}</TableBodyCell>
-								<TableBodyCell {tdClass}>{position.vega ? position.vega.toFixed(2) : ''}</TableBodyCell>
-								<TableBodyCell {tdClass}>{position.iv ? (position.iv * 100).toFixed(2) : ''}</TableBodyCell>
+								<TableBodyCell {tdClass}>{'gamma' in position ? position.gamma.toFixed(2) : ''}</TableBodyCell>
+								<TableBodyCell {tdClass}>{'theta' in position ? position.theta.toFixed(2) : ''}</TableBodyCell>
+								<TableBodyCell {tdClass}>{'vega' in position ? position.vega.toFixed(2) : ''}</TableBodyCell>
+								<TableBodyCell {tdClass}>{'iv' in position ? (position.iv * 100).toFixed(2) : ''}</TableBodyCell>
 								<!-- <TableBodyCell {tdClass}>{position.theo.toFixed(2)}</TableBodyCell> -->
 								<!-- <TableBodyCell {tdClass}>{position.intrinsic.toFixed(2)}</TableBodyCell>
 								<TableBodyCell {tdClass}>{position.extrinsic.toFixed(2)}</TableBodyCell> -->
