@@ -307,9 +307,16 @@
 
 		// sort call and put positions using the delta
 		callPositions.sort((a, b) => {
+			if(!('delta' in a) || !('delta' in b)) {
+				return 0
+			}
 			return (b.delta as number) - (a.delta as number)
 		})
 		putPositions.sort((a, b) => {
+			if(!('delta' in a) || !('delta' in b)) {
+				return 0
+			}
+
 			return (a.delta as number) - (b.delta as number)
 		})
 
