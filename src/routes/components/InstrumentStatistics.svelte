@@ -94,7 +94,7 @@
 	const statisticsGreeks = ['shortCallsDelta', 'longCallsDelta', 'shortPutsDelta', 'longPutsDelta', 'callDelta', 'putDelta', 'netDelta', 'callsExtrinsic', 'callsIntrinsic', 'putsExtrinsic', 'putsIntrinsic', 'totalDelta', 'extrinsic', 'intrinsic', 'putGamma', 'callTheta', 'putTheta', 'callVega', 'putVega', 'callGamma', 'netGamma', 'netTheta', 'netVega']
 
 	const updateInstrument = () => {
-		if(!instrument) {
+		if (!instrument) {
 			return
 		}
 
@@ -207,7 +207,7 @@
 	}
 
 	const updateGreeks = () => {
-		if(!(instrument in $trades)) {
+		if (!(instrument in $trades)) {
 			return
 		}
 
@@ -237,6 +237,8 @@
 				$tastytradePositions[i].theo = blackScholes(price, position.instrument.strike as number, timeToExpiration, iv, 0, position.instrument.side as string)
 				$tastytradePositions[i].intrinsic = (position.instrument.side == 'call' ? Math.max(0, price - (position.instrument.strike as number)) : Math.max(0, (position.instrument.strike as number) - price)) * 100 * position.quantity * (position['quantity-direction'] == 'Short' ? 1 : -1)
 				$tastytradePositions[i].extrinsic = (mid - ($tastytradePositions[i].intrinsic as number)) * 100 * position.quantity * (position['quantity-direction'] == 'Short' ? 1 : -1)
+
+				position = $tastytradePositions[i]
 
 				let expiration = position.instrument.expiration as string
 
@@ -322,7 +324,10 @@
 		// sum up all the delta for all expirations
 		for (let prop of statisticsGreeks) {
 			// @ts-ignore
-			totals[prop] = roundNumber(Object.values(statistics).reduce((a, b) => a + (b[prop] || 0), 0), 0)
+			totals[prop] = roundNumber(
+				Object.values(statistics).reduce((a, b) => a + (b[prop] || 0), 0),
+				0,
+			)
 		}
 
 		totals.deltaImbalance = roundNumber((totals.netDelta / totals.totalDelta) * 100)
@@ -561,12 +566,12 @@
 										>{#if position['quantity-direction'] == 'Long'}+{:else}-{/if}{position.quantity}
 									</Badge>
 								</TableBodyCell>
-								<TableBodyCell {tdClass}>{position.delta.toFixed(2)}</TableBodyCell>
+								<TableBodyCell {tdClass}>{position.delta ? position.delta.toFixed(2) : ''}</TableBodyCell>
 								<!-- <TableBodyCell {tdClass}>{(position.quantity * position.delta * (position['quantity-direction'] == 'Short' ? -1 : 1)).toFixed(2)}</TableBodyCell> -->
-								<TableBodyCell {tdClass}>{position.gamma.toFixed(2)}</TableBodyCell>
-								<TableBodyCell {tdClass}>{position.theta.toFixed(2)}</TableBodyCell>
-								<TableBodyCell {tdClass}>{position.vega.toFixed(2)}</TableBodyCell>
-								<TableBodyCell {tdClass}>{(position.iv * 100).toFixed(2)}</TableBodyCell>
+								<TableBodyCell {tdClass}>{position.gamma ? position.gamma.toFixed(2) : ''}</TableBodyCell>
+								<TableBodyCell {tdClass}>{position.theta ? position.theta.toFixed(2) : ''}</TableBodyCell>
+								<TableBodyCell {tdClass}>{position.vega ? position.vega.toFixed(2) : ''}</TableBodyCell>
+								<TableBodyCell {tdClass}>{position.iv ? (position.iv * 100).toFixed(2) : ''}</TableBodyCell>
 								<!-- <TableBodyCell {tdClass}>{position.theo.toFixed(2)}</TableBodyCell> -->
 								<!-- <TableBodyCell {tdClass}>{position.intrinsic.toFixed(2)}</TableBodyCell>
 								<TableBodyCell {tdClass}>{position.extrinsic.toFixed(2)}</TableBodyCell> -->
