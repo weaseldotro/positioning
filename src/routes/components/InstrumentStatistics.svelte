@@ -237,7 +237,6 @@
 				$tastytradePositions[i].theo = blackScholes(price, position.instrument.strike as number, timeToExpiration, iv, 0, position.instrument.side as string)
 				$tastytradePositions[i].intrinsic = (position.instrument.side == 'call' ? Math.max(0, price - (position.instrument.strike as number)) : Math.max(0, (position.instrument.strike as number) - price)) * 100 * position.quantity * (position['quantity-direction'] == 'Short' ? 1 : -1)
 				$tastytradePositions[i].extrinsic = (mid - ($tastytradePositions[i].intrinsic as number)) * 100 * position.quantity * (position['quantity-direction'] == 'Short' ? 1 : -1)
-
 				position = $tastytradePositions[i]
 
 				let expiration = position.instrument.expiration as string
@@ -391,9 +390,6 @@
 					{#if callsMaintenanceBuyingPower}
 						<KeyValue key="BPR" value={callsMaintenanceBuyingPower} />
 					{/if}
-					<!-- {#if callsMaintenanceBuyingPower && totalQuantity.shortCalls}
-					<KeyValue key="Average BPR / short call" value={Math.round(callsMaintenanceBuyingPower / totalQuantity.shortCalls)} />
-				{/if} -->
 				</div>
 
 				<div>
@@ -412,9 +408,6 @@
 					{#if putsMaintenanceBuyingPower}
 						<KeyValue key="BPR" value={putsMaintenanceBuyingPower} />
 					{/if}
-					<!-- {#if putsMaintenanceBuyingPower && totalQuantity.shortPuts}
-					<KeyValue key="Average BPR / short put" value={Math.round(putsMaintenanceBuyingPower / totalQuantity.shortPuts)} />
-				{/if} -->
 				</div>
 			</div>
 		</div>
@@ -458,10 +451,6 @@
 						<KeyValue key="Intrinsic" value={statistics[expiration].callsIntrinsic} />
 						<KeyValue key="Extrinsic" value={statistics[expiration].callsExtrinsic} />
 						<KeyValue key="BPR" value={maintenanceBuyingPower[expiration].calls} />
-
-						<!-- {#if expiration in maintenanceBuyingPower && statistics[expiration].shortCalls}
-						<KeyValue key="Average BPR / short call" value={Math.round(maintenanceBuyingPower[expiration].calls / statistics[expiration].shortCalls)} />
-					{/if} -->
 					</div>
 
 					<div>
@@ -478,10 +467,6 @@
 						<KeyValue key="Intrinsic" value={statistics[expiration].putsIntrinsic} />
 						<KeyValue key="Extrinsic" value={statistics[expiration].putsExtrinsic} />
 						<KeyValue key="BPR" value={maintenanceBuyingPower[expiration].puts} />
-
-						<!-- {#if expiration in maintenanceBuyingPower && statistics[expiration].shortPuts}
-						<KeyValue key="Average BPR / short put" value={Math.round(maintenanceBuyingPower[expiration].puts / statistics[expiration].shortPuts)} />
-					{/if} -->
 					</div>
 				</div>
 			</div>
@@ -500,14 +485,10 @@
 						<TableHeadCell class={tdClass}>Strike</TableHeadCell>
 						<TableHeadCell class={tdClass}>Qty</TableHeadCell>
 						<TableHeadCell class={tdClass}>Delta</TableHeadCell>
-						<!-- <TableHeadCell class={tdClass}>Total delta</TableHeadCell> -->
 						<TableHeadCell class={tdClass}>Gamma</TableHeadCell>
 						<TableHeadCell class={tdClass}>Theta</TableHeadCell>
 						<TableHeadCell class={tdClass}>Vega</TableHeadCell>
 						<TableHeadCell class={tdClass}>IV</TableHeadCell>
-						<!-- <TableHeadCell class={tdClass}>Theo</TableHeadCell> -->
-						<!-- <TableHeadCell class={tdClass}>Intrinsic</TableHeadCell>
-						<TableHeadCell class={tdClass}>Extrinsic</TableHeadCell> -->
 					</TableHead>
 					<TableBody>
 						{#each callPositions as position}
@@ -523,15 +504,11 @@
 										>{#if position['quantity-direction'] == 'Long'}+{:else}-{/if}{position.quantity}
 									</Badge>
 								</TableBodyCell>
-								<TableBodyCell {tdClass}>{position.delta.toFixed(2)}</TableBodyCell>
-								<!-- <TableBodyCell {tdClass}>{(position.quantity * position.delta * (position['quantity-direction'] == 'Short' ? -1 : 1)).toFixed(2)}</TableBodyCell> -->
-								<TableBodyCell {tdClass}>{position.gamma.toFixed(2)}</TableBodyCell>
-								<TableBodyCell {tdClass}>{position.theta.toFixed(2)}</TableBodyCell>
-								<TableBodyCell {tdClass}>{position.vega.toFixed(2)}</TableBodyCell>
-								<TableBodyCell {tdClass}>{(position.iv * 100).toFixed(2)}</TableBodyCell>
-								<!-- <TableBodyCell {tdClass}>{position.theo.toFixed(2)}</TableBodyCell> -->
-								<!-- <TableBodyCell {tdClass}>{position.intrinsic.toFixed(2)}</TableBodyCell>
-								<TableBodyCell {tdClass}>{position.extrinsic.toFixed(2)}</TableBodyCell> -->
+								<TableBodyCell {tdClass}>{'delta' in position ? position.delta.toFixed(2) : ''}</TableBodyCell>
+								<TableBodyCell {tdClass}>{'gamma' in position ? position.gamma.toFixed(2) : ''}</TableBodyCell>
+								<TableBodyCell {tdClass}>{'theta' in position ? position.theta.toFixed(2) : ''}</TableBodyCell>
+								<TableBodyCell {tdClass}>{'vega' in position ? position.vega.toFixed(2) : ''}</TableBodyCell>
+								<TableBodyCell {tdClass}>{'iv' in position ? (position.iv * 100).toFixed(2) : ''}</TableBodyCell>
 							</TableBodyRow>
 						{/each}
 					</TableBody>
@@ -550,14 +527,10 @@
 						<TableHeadCell class={tdClass}>Strike</TableHeadCell>
 						<TableHeadCell class={tdClass}>Qty</TableHeadCell>
 						<TableHeadCell class={tdClass}>Delta</TableHeadCell>
-						<!-- <TableHeadCell class={tdClass}>Total delta</TableHeadCell> -->
 						<TableHeadCell class={tdClass}>Gamma</TableHeadCell>
 						<TableHeadCell class={tdClass}>Theta</TableHeadCell>
 						<TableHeadCell class={tdClass}>Vega</TableHeadCell>
 						<TableHeadCell class={tdClass}>IV</TableHeadCell>
-						<!-- <TableHeadCell class={tdClass}>Theo</TableHeadCell> -->
-						<!-- <TableHeadCell class={tdClass}>Intrinsic</TableHeadCell> -->
-						<!-- <TableHeadCell class={tdClass}>Extrinsic</TableHeadCell> -->
 					</TableHead>
 					<TableBody>
 						{#each putPositions as position}
@@ -574,14 +547,10 @@
 									</Badge>
 								</TableBodyCell>
 								<TableBodyCell {tdClass}>{'delta' in position ? position.delta.toFixed(2) : ''}</TableBodyCell>
-								<!-- <TableBodyCell {tdClass}>{(position.quantity * position.delta * (position['quantity-direction'] == 'Short' ? -1 : 1)).toFixed(2)}</TableBodyCell> -->
 								<TableBodyCell {tdClass}>{'gamma' in position ? position.gamma.toFixed(2) : ''}</TableBodyCell>
 								<TableBodyCell {tdClass}>{'theta' in position ? position.theta.toFixed(2) : ''}</TableBodyCell>
 								<TableBodyCell {tdClass}>{'vega' in position ? position.vega.toFixed(2) : ''}</TableBodyCell>
 								<TableBodyCell {tdClass}>{'iv' in position ? (position.iv * 100).toFixed(2) : ''}</TableBodyCell>
-								<!-- <TableBodyCell {tdClass}>{position.theo.toFixed(2)}</TableBodyCell> -->
-								<!-- <TableBodyCell {tdClass}>{position.intrinsic.toFixed(2)}</TableBodyCell>
-								<TableBodyCell {tdClass}>{position.extrinsic.toFixed(2)}</TableBodyCell> -->
 							</TableBodyRow>
 						{/each}
 					</TableBody>
