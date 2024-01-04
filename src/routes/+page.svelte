@@ -21,7 +21,7 @@
 
 		setTimeout(() => {
 			window.location.reload()
-		}, 120000);
+		}, 180000);
 	})
 
 	let unsubscribers: (() => void)[] = []
