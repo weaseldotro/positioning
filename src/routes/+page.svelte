@@ -18,6 +18,10 @@
 		if (await checkSession()) {
 			$loadingData = true
 		}
+
+		setTimeout(() => {
+			window.location.reload()
+		}, 120000);
 	})
 
 	let unsubscribers: (() => void)[] = []
