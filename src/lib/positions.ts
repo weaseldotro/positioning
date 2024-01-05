@@ -34,7 +34,7 @@ export const loadPositions = async () => {
 
 		let newInstruments: string[] = []
 		newPositions.forEach((position) => {
-			if (position['instrument-type'] != 'Equity Option' && position['instrument-type'] != 'Future Option') {
+			if (position['instrument-type'] != 'Equity Option') { // && position['instrument-type'] != 'Future Option') {
 				return
 			}
 
