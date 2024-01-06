@@ -10,7 +10,7 @@
 
 	export let instrument: string
 
-	const tdClass = 'px-6 py-1 whitespace-nowrap font-medium text-center text-black'
+	const tdClass = 'px-6 py-1 font-medium text-center text-black'
 
 	let expirations: string[] = []
 	let maintenanceBuyingPower: MaintenanceBuyingPower = {}
@@ -54,9 +54,12 @@
 		callsIntrinsic: number
 		putsExtrinsic: number
 		putsIntrinsic: number
-		deltaImbalance: number
 		extrinsic: number
 		intrinsic: number
+		deltaImbalance: number
+		gammaImbalance: number
+		thetaImbalance: number
+		vegaImbalance: number
 	}
 
 	let statistics: Record<string, Statistics> = {} // expiration => Statistics
@@ -86,9 +89,12 @@
 		callVega: 0,
 		putVega: 0,
 		totalDelta: 0,
-		deltaImbalance: 0,
 		extrinsic: 0,
 		intrinsic: 0,
+		deltaImbalance: 0,
+		gammaImbalance: 0,
+		thetaImbalance: 0,
+		vegaImbalance: 0,
 	}
 
 	const statisticsGreeks = ['shortCallsDelta', 'longCallsDelta', 'shortPutsDelta', 'longPutsDelta', 'callDelta', 'putDelta', 'netDelta', 'callsExtrinsic', 'callsIntrinsic', 'putsExtrinsic', 'putsIntrinsic', 'totalDelta', 'extrinsic', 'intrinsic', 'putGamma', 'callTheta', 'putTheta', 'callVega', 'putVega', 'callGamma', 'netGamma', 'netTheta', 'netVega']
@@ -150,7 +156,6 @@
 					putsIntrinsic: 0,
 					netDelta: 0,
 					totalDelta: 0,
-					deltaImbalance: 0,
 					callGamma: 0,
 					putGamma: 0,
 					callTheta: 0,
@@ -159,6 +164,10 @@
 					putVega: 0,
 					extrinsic: 0,
 					intrinsic: 0,
+					deltaImbalance: 0,
+					gammaImbalance: 0,
+					thetaImbalance: 0,
+					vegaImbalance: 0,
 				}
 			}
 
@@ -211,7 +220,7 @@
 			return
 		}
 
-		let price = roundNumber($trades[instrument])
+		let underlyingPrice = roundNumber($trades[instrument])
 
 		for (let expiration of Object.keys(statistics)) {
 			for (let prop of statisticsGreeks) {
@@ -225,94 +234,85 @@
 				return
 			}
 
-			if (position.bid && position.ask) {
-				let timeToExpiration = (new Date(position['expires-at']).getTime() - new Date().getTime()) / 31536000000
-				let mid = roundNumber((position.bid + position.ask) / 2)
-				let iv = getImpliedVolatility(mid, price, position.instrument.strike as number, timeToExpiration, 0, position.instrument.side as string, 0.0001)
-				$tastytradePositions[i].iv = iv
-				$tastytradePositions[i].delta = getDelta(price, position.instrument.strike as number, timeToExpiration, iv, 0, position.instrument.side as string) * 100
-				$tastytradePositions[i].gamma = getGamma(price, position.instrument.strike as number, timeToExpiration, iv, 0) * 100
-				$tastytradePositions[i].theta = getTheta(price, position.instrument.strike as number, timeToExpiration, iv, 0, position.instrument.side as string, 360) * 100
-				$tastytradePositions[i].vega = getVega(price, position.instrument.strike as number, timeToExpiration, iv, 0) * 100
-				$tastytradePositions[i].theo = blackScholes(price, position.instrument.strike as number, timeToExpiration, iv, 0, position.instrument.side as string)
-				$tastytradePositions[i].intrinsic = (position.instrument.side == 'call' ? Math.max(0, price - (position.instrument.strike as number)) : Math.max(0, (position.instrument.strike as number) - price)) * 100 * position.quantity * (position['quantity-direction'] == 'Short' ? 1 : -1)
-				$tastytradePositions[i].extrinsic = (mid - ($tastytradePositions[i].intrinsic as number)) * 100 * position.quantity * (position['quantity-direction'] == 'Short' ? 1 : -1)
-				position = $tastytradePositions[i]
+			let sum = position.bid + position.ask
+			if (!sum) {
+				return
+			}
 
-				let expiration = position.instrument.expiration as string
+			let positionMidPrice = roundNumber(sum / 2)
+			let timeToExpiration = (new Date(position['expires-at']).getTime() - new Date().getTime()) / 31536000000
+			let iv = getImpliedVolatility(positionMidPrice, underlyingPrice, position.instrument.strike as number, timeToExpiration, 0, position.instrument.side as string, 0.0001)
+			$tastytradePositions[i].iv = iv
+			$tastytradePositions[i].delta = getDelta(underlyingPrice, position.instrument.strike as number, timeToExpiration, iv, 0, position.instrument.side as string) * 100
+			$tastytradePositions[i].gamma = getGamma(underlyingPrice, position.instrument.strike as number, timeToExpiration, iv, 0) * 100
+			$tastytradePositions[i].theta = getTheta(underlyingPrice, position.instrument.strike as number, timeToExpiration, iv, 0, position.instrument.side as string, 360) * 100
+			$tastytradePositions[i].vega = getVega(underlyingPrice, position.instrument.strike as number, timeToExpiration, iv, 0) * 100
+			$tastytradePositions[i].theo = blackScholes(underlyingPrice, position.instrument.strike as number, timeToExpiration, iv, 0, position.instrument.side as string)
+			$tastytradePositions[i].intrinsic = (position.instrument.side == 'call' ? Math.max(0, underlyingPrice - (position.instrument.strike as number)) : Math.max(0, (position.instrument.strike as number) - underlyingPrice)) * 100 * position.quantity * (position['quantity-direction'] == 'Short' ? 1 : -1)
+			$tastytradePositions[i].extrinsic = (positionMidPrice - ($tastytradePositions[i].intrinsic as number)) * 100 * position.quantity * (position['quantity-direction'] == 'Short' ? 1 : -1)
+			position = $tastytradePositions[i]
 
-				if (position.instrument.side == 'call') {
-					for (let j = 0; j < callPositions.length; j++) {
-						if (callPositions[j].instrument.dxfeedSymbol == position.instrument.dxfeedSymbol) {
-							callPositions[j] = position
-							break
-						}
-					}
+			let expiration = position.instrument.expiration as string
 
-					if (position['quantity-direction'] == 'Long') {
-						statistics[expiration].longCallsDelta += (position.delta as number) * position.quantity
-						statistics[expiration].callGamma += (position.gamma as number) * position.quantity
-						statistics[expiration].callTheta += (position.theta as number) * position.quantity
-						statistics[expiration].callVega += (position.vega as number) * position.quantity
-					} else {
-						statistics[expiration].shortCallsDelta += (position.delta as number) * -position.quantity
-						statistics[expiration].callGamma += (position.gamma as number) * -position.quantity
-						statistics[expiration].callTheta += (position.theta as number) * -position.quantity
-						statistics[expiration].callVega += (position.vega as number) * -position.quantity
-					}
-				} else {
-					for (let j = 0; j < putPositions.length; j++) {
-						if (putPositions[j].instrument.dxfeedSymbol == position.instrument.dxfeedSymbol) {
-							putPositions[j] = position
-							break
-						}
-					}
+			statistics[expiration].intrinsic += position.intrinsic as number
+			statistics[expiration].extrinsic += position.extrinsic as number
 
-					if (position['quantity-direction'] == 'Long') {
-						statistics[expiration].longPutsDelta += (position.delta as number) * position.quantity
-						statistics[expiration].putGamma += (position.gamma as number) * position.quantity
-						statistics[expiration].putTheta += (position.theta as number) * position.quantity
-						statistics[expiration].putVega += (position.vega as number) * position.quantity
-					} else {
-						statistics[expiration].shortPutsDelta += (position.delta as number) * -position.quantity
-						statistics[expiration].putGamma += (position.gamma as number) * -position.quantity
-						statistics[expiration].putTheta += (position.theta as number) * -position.quantity
-						statistics[expiration].putVega += (position.vega as number) * -position.quantity
+			if (position.instrument.side == 'call') {
+				for (let j = 0; j < callPositions.length; j++) {
+					if (callPositions[j].instrument.dxfeedSymbol == position.instrument.dxfeedSymbol) {
+						callPositions[j] = position
+						break
 					}
 				}
 
-				statistics[expiration].callDelta = roundNumber(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta, 0)
-				statistics[expiration].putDelta = roundNumber(statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta, 0)
-				statistics[expiration].netDelta = roundNumber(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta + statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta, 0)
-				statistics[expiration].totalDelta = Math.abs(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta) + Math.abs(statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta)
-				statistics[expiration].deltaImbalance = roundNumber((statistics[expiration].netDelta / statistics[expiration].totalDelta) * 100, 2)
-
-				statistics[expiration].netTheta = roundNumber(statistics[expiration].callTheta + statistics[expiration].putTheta, 0)
-				statistics[expiration].netGamma = roundNumber(statistics[expiration].callGamma + statistics[expiration].putGamma, 0)
-				statistics[expiration].netVega = roundNumber(statistics[expiration].callVega + statistics[expiration].putVega, 0)
-
-				statistics[expiration].intrinsic += $tastytradePositions[i].intrinsic as number
-				statistics[expiration].extrinsic += $tastytradePositions[i].extrinsic as number
-
-				if (position.instrument.side == 'call') {
-					statistics[expiration].callsIntrinsic += $tastytradePositions[i].intrinsic as number
-					statistics[expiration].callsExtrinsic += $tastytradePositions[i].extrinsic as number
+				if (position['quantity-direction'] == 'Long') {
+					statistics[expiration].longCallsDelta += (position.delta as number) * position.quantity
+					statistics[expiration].callGamma += (position.gamma as number) * position.quantity
+					statistics[expiration].callTheta += (position.theta as number) * position.quantity
+					statistics[expiration].callVega += (position.vega as number) * position.quantity
 				} else {
-					statistics[expiration].putsIntrinsic += $tastytradePositions[i].intrinsic as number
-					statistics[expiration].putsExtrinsic += $tastytradePositions[i].extrinsic as number
+					statistics[expiration].shortCallsDelta += (position.delta as number) * -position.quantity
+					statistics[expiration].callGamma += (position.gamma as number) * -position.quantity
+					statistics[expiration].callTheta += (position.theta as number) * -position.quantity
+					statistics[expiration].callVega += (position.vega as number) * -position.quantity
 				}
+
+				statistics[expiration].callsIntrinsic += position.intrinsic as number
+				statistics[expiration].callsExtrinsic += position.extrinsic as number
+			} else {
+				for (let j = 0; j < putPositions.length; j++) {
+					if (putPositions[j].instrument.dxfeedSymbol == position.instrument.dxfeedSymbol) {
+						putPositions[j] = position
+						break
+					}
+				}
+
+				if (position['quantity-direction'] == 'Long') {
+					statistics[expiration].longPutsDelta += (position.delta as number) * position.quantity
+					statistics[expiration].putGamma += (position.gamma as number) * position.quantity
+					statistics[expiration].putTheta += (position.theta as number) * position.quantity
+					statistics[expiration].putVega += (position.vega as number) * position.quantity
+				} else {
+					statistics[expiration].shortPutsDelta += (position.delta as number) * -position.quantity
+					statistics[expiration].putGamma += (position.gamma as number) * -position.quantity
+					statistics[expiration].putTheta += (position.theta as number) * -position.quantity
+					statistics[expiration].putVega += (position.vega as number) * -position.quantity
+				}
+
+				statistics[expiration].putsIntrinsic += position.intrinsic as number
+				statistics[expiration].putsExtrinsic += position.extrinsic as number
 			}
 		})
 
 		// sort call and put positions using the delta
 		callPositions.sort((a, b) => {
-			if(!('delta' in a) || !('delta' in b)) {
+			if (!('delta' in a) || !('delta' in b)) {
 				return 0
 			}
 			return (b.delta as number) - (a.delta as number)
 		})
 		putPositions.sort((a, b) => {
-			if(!('delta' in a) || !('delta' in b)) {
+			if (!('delta' in a) || !('delta' in b)) {
 				return 0
 			}
 
@@ -321,6 +321,20 @@
 
 		// round the statistics values
 		for (let expiration of Object.keys(statistics)) {
+			statistics[expiration].callDelta = roundNumber(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta, 0)
+			statistics[expiration].putDelta = roundNumber(statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta, 0)
+			statistics[expiration].netDelta = roundNumber(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta + statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta, 0)
+			statistics[expiration].totalDelta = Math.abs(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta) + Math.abs(statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta)
+
+			statistics[expiration].netTheta = roundNumber(statistics[expiration].callTheta + statistics[expiration].putTheta, 0)
+			statistics[expiration].netGamma = roundNumber(statistics[expiration].callGamma + statistics[expiration].putGamma, 0)
+			statistics[expiration].netVega = roundNumber(statistics[expiration].callVega + statistics[expiration].putVega, 0)
+
+			statistics[expiration].deltaImbalance = roundNumber((Math.abs(statistics[expiration].netDelta) / statistics[expiration].totalDelta) * 100, 2)
+			statistics[expiration].gammaImbalance = roundNumber((Math.abs(statistics[expiration].callGamma) - Math.abs(statistics[expiration].putGamma)) / Math.abs((statistics[expiration].callGamma + statistics[expiration].putGamma) / 2) * 100, 0)
+			statistics[expiration].thetaImbalance = roundNumber((Math.abs(statistics[expiration].callTheta) - Math.abs(statistics[expiration].putTheta)) / Math.abs((statistics[expiration].callTheta + statistics[expiration].putTheta) / 2) * 100, 0)
+			statistics[expiration].vegaImbalance = roundNumber((Math.abs(statistics[expiration].callVega) - Math.abs(statistics[expiration].putVega)) / Math.abs((statistics[expiration].callVega + statistics[expiration].putVega) / 2) * 100, 0)
+
 			for (let prop of statisticsGreeks) {
 				// @ts-ignore
 				statistics[expiration][prop] = roundNumber(statistics[expiration][prop], 0)
@@ -329,14 +343,16 @@
 
 		// sum up all the delta for all expirations
 		for (let prop of statisticsGreeks) {
-			// @ts-ignore
 			totals[prop] = roundNumber(
 				Object.values(statistics).reduce((a, b) => a + (b[prop] || 0), 0),
 				0,
 			)
 		}
 
-		totals.deltaImbalance = roundNumber((totals.netDelta / totals.totalDelta) * 100)
+		totals.deltaImbalance = roundNumber((Math.abs(totals.netDelta) / totals.totalDelta) * 100)
+		totals.gammaImbalance = roundNumber((Math.abs(totals.callGamma) - Math.abs(totals.putGamma)) / Math.abs((totals.callGamma + totals.putGamma) / 2) * 100, 0)
+		totals.thetaImbalance = roundNumber((Math.abs(totals.callTheta) - Math.abs(totals.putTheta)) / Math.abs((totals.callTheta + totals.putTheta) / 2) * 100, 0)
+		totals.vegaImbalance = roundNumber((Math.abs(totals.callVega) - Math.abs(totals.putVega)) / Math.abs((totals.callVega + totals.putVega) / 2) * 100, 0)
 
 		greeksInitialized = true
 	}
@@ -357,25 +373,32 @@
 				</div>
 			</h2>
 
-			<div class="grid sm:grid-cols-2 gap-x-3">
+			<div class="grid sm:grid-cols-3 gap-x-3">
 				<div>
+					<h3 class="p-1 uppercase text-xs font-semibold text-center bg-slate-100">Greeks</h3>
 					<KeyValue key="Delta" value={totals.netDelta} />
 					<KeyValue key="Gamma" value={totals.netGamma} />
 					<KeyValue key="Theta" value={totals.netTheta} />
 					<KeyValue key="Vega" value={totals.netVega} />
 				</div>
 				<div>
-					<KeyValue key="Delta imbalance" value={(totals.deltaImbalance > 0 ? '+' : '') + totals.deltaImbalance + '%'} />
+					<h3 class="p-1 uppercase text-xs font-semibold text-center bg-slate-100">Imbalances</h3>
+					<KeyValue key="Delta" value={totals.deltaImbalance + '%'} color={Math.abs(totals.callDelta) > Math.abs(totals.putDelta) ? 'text-green-500' : 'text-red-500'} />
+					<KeyValue key="Gamma" value={totals.gammaImbalance + '%'} color={Math.abs(totals.callGamma) > Math.abs(totals.putGamma) ? 'text-green-500' : 'text-red-500'} />
+					<KeyValue key="Theta" value={totals.thetaImbalance + '%'} color={Math.abs(totals.callTheta) > Math.abs(totals.putTheta) ? 'text-green-500' : 'text-red-500'} />
+					<KeyValue key="Vega" value={totals.vegaImbalance + '%'} color={Math.abs(totals.callVega) > Math.abs(totals.putVega) ? 'text-green-500' : 'text-red-500'} />
+				</div>
+				<div>
+					<h3 class="p-1 uppercase text-xs font-semibold text-center bg-slate-100">Amounts</h3>
 					<KeyValue key="Intrinsic" value={totals.intrinsic} />
 					<KeyValue key="Extrinsic" value={totals.extrinsic} />
 					<KeyValue key="BPR" value={getMaintenanceBuyingPower(instrument)} />
 				</div>
+			</div>
 
-				<div class="mt-3"></div>
-				<div class="mt-3 hidden sm:block"></div>
-
+			<div class="grid sm:grid-cols-2 gap-x-3 mt-3">
 				<div>
-					<h3 class="font-semibold text-center bg-slate-100">Calls</h3>
+					<h3 class="p-1 uppercase text-xs font-semibold text-center bg-slate-100 text-green-500">Calls</h3>
 					<KeyValue key="Delta" value={totals.callDelta} />
 					<KeyValue key="Short delta" value={totals.shortCallsDelta} />
 					<KeyValue key="Long delta" value={totals.longCallsDelta} />
@@ -393,7 +416,7 @@
 				</div>
 
 				<div>
-					<h3 class="font-semibold text-center bg-slate-100">Puts</h3>
+					<h3 class="p-1 uppercase text-xs font-semibold text-center bg-slate-100 text-red-500">Puts</h3>
 					<KeyValue key="Delta" value={totals.putDelta} />
 					<KeyValue key="Short delta" value={totals.shortPutsDelta} />
 					<KeyValue key="Long delta" value={totals.longPutsDelta} />
@@ -420,25 +443,32 @@
 					<div class="w-20 text-right">{calculateDTE(expiration)} DTE</div>
 				</h2>
 
-				<div class="grid sm:grid-cols-2 gap-x-3">
+				<div class="grid sm:grid-cols-3 gap-x-3">
 					<div>
+						<h3 class="p-1 uppercase text-xs font-semibold text-center bg-slate-100">Greeks</h3>
 						<KeyValue key="Delta" value={statistics[expiration].netDelta} />
 						<KeyValue key="Gamma" value={statistics[expiration].netGamma} />
 						<KeyValue key="Theta" value={statistics[expiration].netTheta} />
 						<KeyValue key="Vega" value={statistics[expiration].netVega} />
 					</div>
 					<div>
-						<KeyValue key="Delta imbalance" value={(statistics[expiration].deltaImbalance > 0 ? '+' : '') + statistics[expiration].deltaImbalance + '%'} />
+						<h3 class="p-1 uppercase text-xs font-semibold text-center bg-slate-100">Imbalances</h3>
+						<KeyValue key="Delta" value={statistics[expiration].deltaImbalance + '%'} color={Math.abs(statistics[expiration].callDelta) > Math.abs(statistics[expiration].putDelta) ? 'text-green-500' : 'text-red-500'} />
+						<KeyValue key="Gamma" value={statistics[expiration].gammaImbalance + '%'} color={Math.abs(statistics[expiration].callGamma) > Math.abs(statistics[expiration].putGamma) ? 'text-green-500' : 'text-red-500'} />
+						<KeyValue key="Theta" value={statistics[expiration].thetaImbalance + '%'} color={Math.abs(statistics[expiration].callTheta) > Math.abs(statistics[expiration].putTheta) ? 'text-green-500' : 'text-red-500'} />
+						<KeyValue key="Vega" value={statistics[expiration].vegaImbalance + '%'} color={Math.abs(statistics[expiration].callVega) > Math.abs(statistics[expiration].putVega) ? 'text-green-500' : 'text-red-500'} />
+					</div>
+					<div>
+						<h3 class="p-1 uppercase text-xs font-semibold text-center bg-slate-100">Amounts</h3>
 						<KeyValue key="Intrinsic" value={statistics[expiration].intrinsic} />
 						<KeyValue key="Extrinsic" value={statistics[expiration].extrinsic} />
 						<KeyValue key="BPR" value={maintenanceBuyingPower[expiration].calls > maintenanceBuyingPower[expiration].puts ? maintenanceBuyingPower[expiration].calls : maintenanceBuyingPower[expiration].puts} />
 					</div>
+				</div>
 
-					<div class="mt-3"></div>
-					<div class="mt-3 hidden sm:block"></div>
-
+				<div class="grid sm:grid-cols-2 gap-x-3 mt-3">
 					<div>
-						<h3 class="font-semibold text-center bg-slate-100">Calls</h3>
+						<h3 class="p-1 uppercase text-xs font-semibold text-center bg-slate-100 text-green-500">Calls</h3>
 						<KeyValue key="Delta" value={statistics[expiration].callDelta} />
 						<KeyValue key="Short delta" value={statistics[expiration].shortCallsDelta} />
 						<KeyValue key="Long delta" value={statistics[expiration].longCallsDelta} />
@@ -454,7 +484,7 @@
 					</div>
 
 					<div>
-						<h3 class="font-semibold text-center bg-slate-100">Puts</h3>
+						<h3 class="p-1 uppercase text-xs font-semibold text-center bg-slate-100 text-red-500">Puts</h3>
 						<KeyValue key="Delta" value={statistics[expiration].putDelta} />
 						<KeyValue key="Short delta" value={statistics[expiration].shortPutsDelta} />
 						<KeyValue key="Long delta" value={statistics[expiration].longPutsDelta} />
@@ -479,7 +509,7 @@
 			{#if callPositions.length == 0}
 				<div class="p-2 border border-gray-400">No calls</div>
 			{:else}
-				<Table class="border w-full max-w-4xl" hoverable>
+				<Table class="border" hoverable>
 					<TableHead class="bg-slate-200">
 						<TableHeadCell class={tdClass}>DTE</TableHeadCell>
 						<TableHeadCell class={tdClass}>Strike</TableHeadCell>
@@ -521,7 +551,7 @@
 			{#if putPositions.length == 0}
 				<div class="p-2 border border-gray-400">No puts</div>
 			{:else}
-				<Table class="border w-full max-w-4xl" hoverable>
+				<Table class="border" hoverable>
 					<TableHead class="bg-slate-200">
 						<TableHeadCell class={tdClass}>DTE</TableHeadCell>
 						<TableHeadCell class={tdClass}>Strike</TableHeadCell>
