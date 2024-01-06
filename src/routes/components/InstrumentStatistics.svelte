@@ -331,9 +331,9 @@
 			statistics[expiration].netVega = roundNumber(statistics[expiration].callVega + statistics[expiration].putVega, 0)
 
 			statistics[expiration].deltaImbalance = roundNumber((Math.abs(statistics[expiration].netDelta) / statistics[expiration].totalDelta) * 100, 2)
-			statistics[expiration].gammaImbalance = roundNumber((Math.abs(statistics[expiration].callGamma) - Math.abs(statistics[expiration].putGamma)) / Math.abs((statistics[expiration].callGamma + statistics[expiration].putGamma) / 2) * 100, 0)
-			statistics[expiration].thetaImbalance = roundNumber((Math.abs(statistics[expiration].callTheta) - Math.abs(statistics[expiration].putTheta)) / Math.abs((statistics[expiration].callTheta + statistics[expiration].putTheta) / 2) * 100, 0)
-			statistics[expiration].vegaImbalance = roundNumber((Math.abs(statistics[expiration].callVega) - Math.abs(statistics[expiration].putVega)) / Math.abs((statistics[expiration].callVega + statistics[expiration].putVega) / 2) * 100, 0)
+			statistics[expiration].gammaImbalance = roundNumber(Math.abs(Math.abs(statistics[expiration].callGamma) - Math.abs(statistics[expiration].putGamma)) / Math.abs((statistics[expiration].callGamma + statistics[expiration].putGamma) / 2) * 100, 0)
+			statistics[expiration].thetaImbalance = roundNumber(Math.abs(Math.abs(statistics[expiration].callTheta) - Math.abs(statistics[expiration].putTheta)) / Math.abs((statistics[expiration].callTheta + statistics[expiration].putTheta) / 2) * 100, 0)
+			statistics[expiration].vegaImbalance = roundNumber(Math.abs(Math.abs(statistics[expiration].callVega) - Math.abs(statistics[expiration].putVega)) / Math.abs((statistics[expiration].callVega + statistics[expiration].putVega) / 2) * 100, 0)
 
 			for (let prop of statisticsGreeks) {
 				// @ts-ignore
@@ -350,9 +350,9 @@
 		}
 
 		totals.deltaImbalance = roundNumber((Math.abs(totals.netDelta) / totals.totalDelta) * 100)
-		totals.gammaImbalance = roundNumber((Math.abs(totals.callGamma) - Math.abs(totals.putGamma)) / Math.abs((totals.callGamma + totals.putGamma) / 2) * 100, 0)
-		totals.thetaImbalance = roundNumber((Math.abs(totals.callTheta) - Math.abs(totals.putTheta)) / Math.abs((totals.callTheta + totals.putTheta) / 2) * 100, 0)
-		totals.vegaImbalance = roundNumber((Math.abs(totals.callVega) - Math.abs(totals.putVega)) / Math.abs((totals.callVega + totals.putVega) / 2) * 100, 0)
+		totals.gammaImbalance = roundNumber(Math.abs(Math.abs(totals.callGamma) - Math.abs(totals.putGamma)) / Math.abs((totals.callGamma + totals.putGamma) / 2) * 100, 0)
+		totals.thetaImbalance = roundNumber(Math.abs(Math.abs(totals.callTheta) - Math.abs(totals.putTheta)) / Math.abs((totals.callTheta + totals.putTheta) / 2) * 100, 0)
+		totals.vegaImbalance = roundNumber(Math.abs(Math.abs(totals.callVega) - Math.abs(totals.putVega)) / Math.abs((totals.callVega + totals.putVega) / 2) * 100, 0)
 
 		greeksInitialized = true
 	}
