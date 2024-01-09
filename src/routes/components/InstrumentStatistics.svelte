@@ -54,12 +54,14 @@
 		callsIntrinsic: number
 		putsExtrinsic: number
 		putsIntrinsic: number
-		extrinsic: number
-		intrinsic: number
 		deltaImbalance: number
 		gammaImbalance: number
 		thetaImbalance: number
 		vegaImbalance: number
+
+		theo: number
+		intrinsic: number
+		extrinsic: number
 	}
 
 	let statistics: Record<string, Statistics> = {} // expiration => Statistics
@@ -89,15 +91,16 @@
 		callVega: 0,
 		putVega: 0,
 		totalDelta: 0,
-		extrinsic: 0,
-		intrinsic: 0,
 		deltaImbalance: 0,
 		gammaImbalance: 0,
 		thetaImbalance: 0,
 		vegaImbalance: 0,
+		theo: 0,
+		intrinsic: 0,
+		extrinsic: 0,
 	}
 
-	const statisticsGreeks = ['shortCallsDelta', 'longCallsDelta', 'shortPutsDelta', 'longPutsDelta', 'callDelta', 'putDelta', 'netDelta', 'callsExtrinsic', 'callsIntrinsic', 'putsExtrinsic', 'putsIntrinsic', 'totalDelta', 'extrinsic', 'intrinsic', 'putGamma', 'callTheta', 'putTheta', 'callVega', 'putVega', 'callGamma', 'netGamma', 'netTheta', 'netVega']
+	const statisticsGreeks = ['shortCallsDelta', 'longCallsDelta', 'shortPutsDelta', 'longPutsDelta', 'callDelta', 'putDelta', 'netDelta', 'callsExtrinsic', 'callsIntrinsic', 'putsExtrinsic', 'putsIntrinsic', 'totalDelta', 'extrinsic', 'intrinsic', 'putGamma', 'callTheta', 'putTheta', 'callVega', 'putVega', 'callGamma', 'netGamma', 'netTheta', 'netVega', 'theo']
 
 	const updateInstrument = () => {
 		if (!instrument) {
@@ -162,12 +165,13 @@
 					putTheta: 0,
 					callVega: 0,
 					putVega: 0,
-					extrinsic: 0,
-					intrinsic: 0,
 					deltaImbalance: 0,
 					gammaImbalance: 0,
 					thetaImbalance: 0,
 					vegaImbalance: 0,
+					theo: 0,
+					intrinsic: 0,
+					extrinsic: 0,
 				}
 			}
 
@@ -256,6 +260,7 @@
 
 			statistics[expiration].intrinsic += position.intrinsic as number
 			statistics[expiration].extrinsic += position.extrinsic as number
+			statistics[expiration].theo += (position.theo as number) * 100 * position.quantity * (position['quantity-direction'] == 'Short' ? -1 : 1)
 
 			if (position.instrument.side == 'call') {
 				for (let j = 0; j < callPositions.length; j++) {
@@ -321,39 +326,57 @@
 
 		// round the statistics values
 		for (let expiration of Object.keys(statistics)) {
-			statistics[expiration].callDelta = roundNumber(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta, 0)
-			statistics[expiration].putDelta = roundNumber(statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta, 0)
-			statistics[expiration].netDelta = roundNumber(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta + statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta, 0)
+			statistics[expiration].callDelta = statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta
+			statistics[expiration].putDelta = statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta
+			statistics[expiration].netDelta = statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta + statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta
 			statistics[expiration].totalDelta = Math.abs(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta) + Math.abs(statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta)
 
-			statistics[expiration].netTheta = roundNumber(statistics[expiration].callTheta + statistics[expiration].putTheta, 0)
-			statistics[expiration].netGamma = roundNumber(statistics[expiration].callGamma + statistics[expiration].putGamma, 0)
-			statistics[expiration].netVega = roundNumber(statistics[expiration].callVega + statistics[expiration].putVega, 0)
+			statistics[expiration].netTheta = statistics[expiration].callTheta + statistics[expiration].putTheta
+			statistics[expiration].netGamma = statistics[expiration].callGamma + statistics[expiration].putGamma
+			statistics[expiration].netVega = statistics[expiration].callVega + statistics[expiration].putVega
 
-			statistics[expiration].deltaImbalance = roundNumber((Math.abs(statistics[expiration].netDelta) / statistics[expiration].totalDelta) * 100, 2)
-			statistics[expiration].gammaImbalance = roundNumber(Math.abs(Math.abs(statistics[expiration].callGamma) - Math.abs(statistics[expiration].putGamma)) / Math.abs((statistics[expiration].callGamma + statistics[expiration].putGamma) / 2) * 100, 0)
-			statistics[expiration].thetaImbalance = roundNumber(Math.abs(Math.abs(statistics[expiration].callTheta) - Math.abs(statistics[expiration].putTheta)) / Math.abs((statistics[expiration].callTheta + statistics[expiration].putTheta) / 2) * 100, 0)
-			statistics[expiration].vegaImbalance = roundNumber(Math.abs(Math.abs(statistics[expiration].callVega) - Math.abs(statistics[expiration].putVega)) / Math.abs((statistics[expiration].callVega + statistics[expiration].putVega) / 2) * 100, 0)
+			statistics[expiration].deltaImbalance = (Math.abs(statistics[expiration].netDelta) / statistics[expiration].totalDelta) * 100
+			statistics[expiration].gammaImbalance = (Math.abs(Math.abs(statistics[expiration].callGamma) - Math.abs(statistics[expiration].putGamma)) / Math.abs((statistics[expiration].callGamma + statistics[expiration].putGamma) / 2)) * 100
+			statistics[expiration].thetaImbalance = (Math.abs(Math.abs(statistics[expiration].callTheta) - Math.abs(statistics[expiration].putTheta)) / Math.abs((statistics[expiration].callTheta + statistics[expiration].putTheta) / 2)) * 100
+			statistics[expiration].vegaImbalance = (Math.abs(Math.abs(statistics[expiration].callVega) - Math.abs(statistics[expiration].putVega)) / Math.abs((statistics[expiration].callVega + statistics[expiration].putVega) / 2)) * 100
+		}
+
+		// sum up all the delta for all expirations
+		for (let prop of statisticsGreeks) {
+			totals[prop] = Object.values(statistics).reduce((a, b) => a + (b[prop] || 0), 0)
+		}
+
+		totals.deltaImbalance = roundNumber((Math.abs(totals.netDelta) / totals.totalDelta) * 100)
+		totals.gammaImbalance = roundNumber((Math.abs(Math.abs(totals.callGamma) - Math.abs(totals.putGamma)) / Math.abs((totals.callGamma + totals.putGamma) / 2)) * 100, 0)
+		totals.thetaImbalance = roundNumber((Math.abs(Math.abs(totals.callTheta) - Math.abs(totals.putTheta)) / Math.abs((totals.callTheta + totals.putTheta) / 2)) * 100, 0)
+		totals.vegaImbalance = roundNumber((Math.abs(Math.abs(totals.callVega) - Math.abs(totals.putVega)) / Math.abs((totals.callVega + totals.putVega) / 2)) * 100, 0)
+
+		// sum up all the delta for all expirations
+		for (let prop of statisticsGreeks) {
+			totals[prop] = roundNumber(totals[prop], 0)
+		}
+
+		// round the statistics values
+		for (let expiration of Object.keys(statistics)) {
+			statistics[expiration].callDelta = roundNumber(statistics[expiration].callDelta, 0)
+			statistics[expiration].putDelta = roundNumber(statistics[expiration].putDelta, 0)
+			statistics[expiration].netDelta = roundNumber(statistics[expiration].netDelta, 0)
+			statistics[expiration].totalDelta = Math.abs(statistics[expiration].shortCallsDelta + statistics[expiration].longCallsDelta) + Math.abs(statistics[expiration].shortPutsDelta + statistics[expiration].longPutsDelta)
+
+			statistics[expiration].netTheta = roundNumber(statistics[expiration].netTheta, 0)
+			statistics[expiration].netGamma = roundNumber(statistics[expiration].netGamma, 0)
+			statistics[expiration].netVega = roundNumber(statistics[expiration].netVega, 0)
+
+			statistics[expiration].deltaImbalance = roundNumber(statistics[expiration].deltaImbalance, 2)
+			statistics[expiration].gammaImbalance = roundNumber(statistics[expiration].gammaImbalance, 0)
+			statistics[expiration].thetaImbalance = roundNumber(statistics[expiration].thetaImbalance, 0)
+			statistics[expiration].vegaImbalance = roundNumber(statistics[expiration].vegaImbalance, 0)
 
 			for (let prop of statisticsGreeks) {
 				// @ts-ignore
 				statistics[expiration][prop] = roundNumber(statistics[expiration][prop], 0)
 			}
 		}
-
-		// sum up all the delta for all expirations
-		for (let prop of statisticsGreeks) {
-			totals[prop] = roundNumber(
-				Object.values(statistics).reduce((a, b) => a + (b[prop] || 0), 0),
-				0,
-			)
-		}
-
-		totals.deltaImbalance = roundNumber((Math.abs(totals.netDelta) / totals.totalDelta) * 100)
-		totals.gammaImbalance = roundNumber(Math.abs(Math.abs(totals.callGamma) - Math.abs(totals.putGamma)) / Math.abs((totals.callGamma + totals.putGamma) / 2) * 100, 0)
-		totals.thetaImbalance = roundNumber(Math.abs(Math.abs(totals.callTheta) - Math.abs(totals.putTheta)) / Math.abs((totals.callTheta + totals.putTheta) / 2) * 100, 0)
-		totals.vegaImbalance = roundNumber(Math.abs(Math.abs(totals.callVega) - Math.abs(totals.putVega)) / Math.abs((totals.callVega + totals.putVega) / 2) * 100, 0)
-
 		greeksInitialized = true
 	}
 
@@ -390,6 +413,7 @@
 				</div>
 				<div>
 					<h3 class="p-1 uppercase text-xs font-semibold text-center bg-slate-100">Amounts</h3>
+					<KeyValue key="Theo" value={totals.theo} />
 					<KeyValue key="Intrinsic" value={totals.intrinsic} />
 					<KeyValue key="Extrinsic" value={totals.extrinsic} />
 					<KeyValue key="BPR" value={getMaintenanceBuyingPower(instrument)} />
@@ -460,6 +484,7 @@
 					</div>
 					<div>
 						<h3 class="p-1 uppercase text-xs font-semibold text-center bg-slate-100">Amounts</h3>
+						<KeyValue key="Theo" value={statistics[expiration].theo} />
 						<KeyValue key="Intrinsic" value={statistics[expiration].intrinsic} />
 						<KeyValue key="Extrinsic" value={statistics[expiration].extrinsic} />
 						<KeyValue key="BPR" value={maintenanceBuyingPower[expiration].calls > maintenanceBuyingPower[expiration].puts ? maintenanceBuyingPower[expiration].calls : maintenanceBuyingPower[expiration].puts} />
